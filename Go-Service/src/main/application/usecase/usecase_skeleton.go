@@ -1,6 +1,9 @@
 package usecase
 
-import "Go-Service/src/main/domain/entity"
+import (
+	"Go-Service/src/main/domain/entity"
+	"Go-Service/src/main/domain/interface/logger"
+)
 
 type SkeletonRepository interface {
 	GetByID(id string) (*entity.Skeleton, error)
@@ -9,6 +12,7 @@ type SkeletonRepository interface {
 
 type SkeletonUseCase struct {
 	SkeletonRepo SkeletonRepository
+	Log          logger.Logger
 }
 
 func (u *SkeletonUseCase) GetSkeletonByID(id string) (*entity.Skeleton, error) {

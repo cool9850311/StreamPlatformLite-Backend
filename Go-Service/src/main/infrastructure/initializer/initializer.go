@@ -2,7 +2,9 @@
 package initializer
 
 import (
+	domainLogger "Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
+	infraLogger "Go-Service/src/main/infrastructure/logger"
 	"context"
 	"log"
 	"time"
@@ -13,7 +15,15 @@ import (
 
 var Client *mongo.Client
 var DB *mongo.Database
+var Log domainLogger.Logger
 
+func InitLog() {
+	var err error
+	Log, err = infraLogger.NewLogger("application.log")
+	if err != nil {
+		panic(err)
+	}
+}
 func InitConfig() {
 	config.LoadConfig()
 }

@@ -4,6 +4,7 @@ package controller
 import (
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity"
+	"Go-Service/src/main/domain/interface/logger"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +12,7 @@ import (
 
 type SkeletonController struct {
 	SkeletonUseCase *usecase.SkeletonUseCase
+	Log             logger.Logger
 }
 
 func (c *SkeletonController) GetSkeleton(ctx *gin.Context) {
@@ -20,6 +22,7 @@ func (c *SkeletonController) GetSkeleton(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "Skeleton not found"})
 		return
 	}
+	c.Log.Info(ctx, "Retrieved skeleton with ID "+id)
 	ctx.JSON(http.StatusOK, skeleton)
 }
 
