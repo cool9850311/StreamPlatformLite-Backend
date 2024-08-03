@@ -1,0 +1,5 @@
+server:
+  port: 8080
+mongodb:
+  uri: "mongodb://root:example@localhost:27017/"
+  database: "go_service"
