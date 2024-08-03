@@ -20,10 +20,11 @@ import (
 )
 
 func setup() *gin.Engine {
+	initializer.InitLog()
 	initializer.InitConfig()
 	initializer.InitMongoClient()
 
-	r := router.NewRouter(initializer.DB)
+	r := router.NewRouter(initializer.DB, initializer.Log)
 	return r
 }
 

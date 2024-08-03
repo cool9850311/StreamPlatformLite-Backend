@@ -2,10 +2,9 @@
 package config
 
 import (
-	"fmt"
+	"Go-Service/src/main/infrastructure/util"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -29,7 +28,7 @@ func LoadConfig() {
 	}
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath(trimPathToBase(workingdir, "Go-Service") + "/src/resource")
+	viper.AddConfigPath(util.TrimPathToBase(workingdir, "Go-Service") + "/src/resource")
 
 	if err := viper.ReadInConfig(); err != nil {
 		log.Fatalf("Error reading config file, %s", err)
@@ -38,14 +37,4 @@ func LoadConfig() {
 	if err := viper.Unmarshal(&AppConfig); err != nil {
 		log.Fatalf("Error unmarshaling config, %s", err)
 	}
-}
-func trimPathToBase(path, base string) string {
-	index := strings.Index(path, base)
-	if index == -1 {
-		fmt.Println("Base path not found in the given path")
-		return ""
-	}
-
-	trimmedPath := path[:index+len(base)]
-	return trimmedPath
 }
