@@ -2,7 +2,7 @@
 package repository
 
 import (
-	"Go-Service/src/main/application/usecase"
+	"Go-Service/src/main/application/interface/repository"
 	"Go-Service/src/main/domain/entity"
 	"context"
 
@@ -14,7 +14,7 @@ type MongoSkeletonRepository struct {
 	collection *mongo.Collection
 }
 
-func NewMongoSkeletonRepository(db *mongo.Database) usecase.SkeletonRepository {
+func NewMongoSkeletonRepository(db *mongo.Database) repository.SkeletonRepository {
 	return &MongoSkeletonRepository{
 		collection: db.Collection("skeletons"),
 	}

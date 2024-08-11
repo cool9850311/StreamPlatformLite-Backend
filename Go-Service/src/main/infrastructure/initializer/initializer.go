@@ -9,6 +9,7 @@ import (
 	"log"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -56,11 +57,25 @@ func InitMongoClient() {
 	// Assign the client and database to global variables
 	Client = client
 	DB = client.Database(config.AppConfig.MongoDB.Database)
+
+	// Create a unique index on the username field
+	userCollection := DB.Collection("users")
+	indexModel := mongo.IndexModel{
+		Keys:    bson.D{{Key: "username", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}
+	_, err = userCollection.Indexes().CreateOne(context.TODO(), indexModel)
+	if err != nil {
+		log.Fatalf("Failed to create index: %v", err)
+	}
+
+	log.Println("Created unique index on username field")
 }
 
 func CleanupMongo() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	DB.Collection("skeletons").Drop(ctx)
+	DB.Collection("users").Drop(ctx)
 	Client.Disconnect(ctx)
 }
