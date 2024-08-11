@@ -17,6 +17,9 @@ type Config struct {
 		URI      string `mapstructure:"uri"`
 		Database string `mapstructure:"database"`
 	} `mapstructure:"mongodb"`
+	JWT struct {
+		SecretKey string `mapstructure:"secretKey"`
+	} `mapstructure:"JWT"`
 }
 
 var AppConfig Config

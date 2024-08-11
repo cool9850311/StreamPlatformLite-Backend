@@ -1,9 +1,12 @@
-// Go-Service/src/test/usecase/skeleton_usecase_test.go
+// Go-Service/src/test/usecase/skeleton_test.go
 package usecase_test
 
 import (
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity"
+	errors_enum "Go-Service/src/main/domain/entity/errors"
+	"Go-Service/src/main/domain/entity/role"
+	"context"
 	"errors"
 	"testing"
 
@@ -29,37 +32,90 @@ func (m *MockSkeletonRepository) Create(skeleton *entity.Skeleton) error {
 	return nil
 }
 
+// MockLogger implementation
+type MockLogger struct{}
+
+func (m *MockLogger) Panic(ctx context.Context, msg string) {}
+func (m *MockLogger) Fatal(ctx context.Context, msg string) {}
+func (m *MockLogger) Error(ctx context.Context, msg string) {}
+func (m *MockLogger) Warn(ctx context.Context, msg string)  {}
+func (m *MockLogger) Info(ctx context.Context, msg string)  {}
+func (m *MockLogger) Debug(ctx context.Context, msg string) {}
+func (m *MockLogger) Trace(ctx context.Context, msg string) {}
+
 func TestSkeletonUseCase_GetSkeletonByID(t *testing.T) {
 	repo := &MockSkeletonRepository{
 		skeletons: map[string]*entity.Skeleton{
 			"1": {ID: "1", Name: "Test Skeleton"},
 		},
 	}
-	uc := usecase.SkeletonUseCase{SkeletonRepo: repo}
+	logger := &MockLogger{}
+	uc := usecase.SkeletonUseCase{
+		SkeletonRepo: repo,
+		Log:          logger,
+	}
 
-	skeleton, err := uc.GetSkeletonByID("1")
+	ctx := context.Background()
+	skeleton, err := uc.GetSkeletonByID(ctx, "1", role.User)
 	assert.Nil(t, err)
 	assert.NotNil(t, skeleton)
 	assert.Equal(t, "Test Skeleton", skeleton.Name)
 
-	skeleton, err = uc.GetSkeletonByID("2")
+	skeleton, err = uc.GetSkeletonByID(ctx, "2", role.User)
 	assert.NotNil(t, err)
+	assert.Nil(t, skeleton)
+}
+
+func TestSkeletonUseCase_GetSkeletonByIDFail(t *testing.T) {
+	repo := &MockSkeletonRepository{
+		skeletons: map[string]*entity.Skeleton{
+			"1": {ID: "1", Name: "Test Skeleton"},
+		},
+	}
+	logger := &MockLogger{}
+	uc := usecase.SkeletonUseCase{
+		SkeletonRepo: repo,
+		Log:          logger,
+	}
+
+	ctx := context.Background()
+	skeleton, err := uc.GetSkeletonByID(ctx, "1", role.Guest)
+	assert.ErrorIs(t, err, errors_enum.ErrUnauthorized)
 	assert.Nil(t, skeleton)
 }
 
 func TestSkeletonUseCase_CreateSkeleton(t *testing.T) {
 	repo := &MockSkeletonRepository{skeletons: make(map[string]*entity.Skeleton)}
-	uc := usecase.SkeletonUseCase{SkeletonRepo: repo}
+	logger := &MockLogger{}
+	uc := usecase.SkeletonUseCase{
+		SkeletonRepo: repo,
+		Log:          logger,
+	}
 
+	ctx := context.Background()
 	newSkeleton := &entity.Skeleton{ID: "1", Name: "New Skeleton"}
-	err := uc.CreateSkeleton(newSkeleton)
+	err := uc.CreateSkeleton(ctx, newSkeleton, role.User)
 	assert.Nil(t, err)
 
-	skeleton, err := uc.GetSkeletonByID("1")
+	skeleton, err := uc.GetSkeletonByID(ctx, "1", role.User)
 	assert.Nil(t, err)
 	assert.NotNil(t, skeleton)
 	assert.Equal(t, "New Skeleton", skeleton.Name)
 
-	err = uc.CreateSkeleton(newSkeleton)
+	err = uc.CreateSkeleton(ctx, newSkeleton, role.User)
 	assert.NotNil(t, err)
+}
+
+func TestSkeletonUseCase_CreateSkeletonFail(t *testing.T) {
+	repo := &MockSkeletonRepository{skeletons: make(map[string]*entity.Skeleton)}
+	logger := &MockLogger{}
+	uc := usecase.SkeletonUseCase{
+		SkeletonRepo: repo,
+		Log:          logger,
+	}
+
+	ctx := context.Background()
+	newSkeleton := &entity.Skeleton{ID: "1", Name: "New Skeleton"}
+	err := uc.CreateSkeleton(ctx, newSkeleton, role.Guest)
+	assert.ErrorIs(t, err, errors_enum.ErrUnauthorized)
 }
