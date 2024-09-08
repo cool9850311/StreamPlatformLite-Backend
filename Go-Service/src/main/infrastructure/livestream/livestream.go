@@ -7,23 +7,15 @@ import (
 	"net"
 	"sync"
 	"strings"
-
+	"Go-Service/src/main/infrastructure/util"
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/rtmp"
-
+	"path/filepath"
+	"os"
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/base"
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/hls"
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/remux"
 )
 
-// type Livestream interface {
-// 	// OpenStream starts a new livestream with the given RTMP URL and output directory
-// 	OpenStream(rtmpURL string, outputDir string) error
-// 	// StartService initializes and starts the livestream service
-// 	StartService() error
-// 	RunLoop() error
-// 	// CloseStream stops the current livestream
-// 	CloseStream() error
-// }
 
 type LivestreamService struct {
 	listener net.Listener
@@ -83,7 +75,12 @@ func (l *LivestreamService) handleTcpConnect(conn net.Conn) error {
 			}
 
 			once.Do(func() {
-				outputPath := stream.uuid
+				rootPath, err := util.GetProjectRootPath()
+				if err != nil {
+					l.logger.Error(context.TODO(), "Failed to get project root path: " + err.Error())
+					return
+				}
+				outputPath := rootPath + "/hls/" + stream.uuid
 				hlsMuxerConfig := hls.MuxerConfig{
 					OutPath:            outputPath,
 					FragmentDurationMs: 500,
@@ -127,6 +124,11 @@ func (l *LivestreamService) getLivestreamByUrl(url string) (*livestream, bool) {
 	}
 	return nil, false
 }
+func (l *LivestreamService) IsLiveStreamExist(uuid string) bool {
+	_, exists := l.streams[uuid]
+	return exists
+}
+
 
 func (l *LivestreamService) OpenStream(name, uuid, apiKey string) error {
 	// Create a new livestream instance
@@ -145,6 +147,19 @@ func (l *LivestreamService) OpenStream(name, uuid, apiKey string) error {
 func (l *LivestreamService) CloseStream(uuid string) error {
 	if stream, exists := l.streams[uuid]; exists {
 		delete(l.streams, uuid)
+		// Delete the HLS directory for the closed stream
+		rootPath, err := util.GetProjectRootPath()
+		if err != nil {
+			l.logger.Error(context.TODO(), "Failed to get project root path: "+err.Error())
+		} else {
+			hlsDir := filepath.Join(rootPath, "hls", uuid)
+			err = os.RemoveAll(hlsDir)
+			if err != nil {
+				l.logger.Error(context.TODO(), "Failed to delete HLS directory: "+err.Error())
+			} else {
+				l.logger.Info(context.TODO(), "Deleted HLS directory: "+hlsDir)
+			}
+		}
 		l.logger.Info(context.TODO(), "Closed livestream: " + stream.name)
 	} else {
 		l.logger.Warn(context.TODO(), "No livestream found with uuid: " + uuid)
