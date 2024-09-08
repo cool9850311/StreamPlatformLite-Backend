@@ -1,6 +1,7 @@
 package infrastructure
 
 import (
+	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/infrastructure/initializer"
 	"Go-Service/src/main/infrastructure/livestream"
 	"testing"
@@ -11,7 +12,7 @@ func TestLivestreamService(t *testing.T) {
 	initializer.InitLog()
 	// Setup
 
-	service := livestream.NewLivestreamService(initializer.Log)
+	var service stream.ILivestreamService = livestream.NewLivestreamService(initializer.Log)
 
 	// Start the service
 	err := service.StartService()

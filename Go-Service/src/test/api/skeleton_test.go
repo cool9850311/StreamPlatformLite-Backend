@@ -30,8 +30,9 @@ func setup() *gin.Engine {
 	initializer.InitLog()
 	initializer.InitConfig()
 	initializer.InitMongoClient()
+	initializer.InitLiveStreamService(initializer.Log)
 
-	r := router.NewRouter(initializer.DB, initializer.Log)
+	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService)
 
 	// Create test user
 	testUser := infra_entity.User{
@@ -103,7 +104,7 @@ func TestGetSkeleton(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
-func Test_CreateSkeleton(t *testing.T) {
+func TestCreateSkeleton(t *testing.T) {
 	r := setup()
 	defer teardown()
 

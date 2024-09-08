@@ -12,11 +12,14 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"Go-Service/src/main/application/interface/stream"
+	"Go-Service/src/main/infrastructure/livestream"
 )
 
 var Client *mongo.Client
 var DB *mongo.Database
 var Log domainLogger.Logger
+var LiveStreamService stream.ILivestreamService
 
 func InitLog() {
 	var err error
@@ -78,4 +81,27 @@ func CleanupMongo() {
 	DB.Collection("skeletons").Drop(ctx)
 	DB.Collection("users").Drop(ctx)
 	Client.Disconnect(ctx)
+}
+
+func InitLiveStreamService(log domainLogger.Logger) {
+	LiveStreamService = livestream.NewLivestreamService(log)
+
+	// Start the service
+	err := LiveStreamService.StartService()
+	if err != nil {
+		log.Fatal(context.TODO(), "Failed to start LiveStreamService: "+err.Error())
+	}
+
+	// Run the service loop in a goroutine
+	go func() {
+		err := LiveStreamService.RunLoop()
+		if err != nil {
+			log.Fatal(context.TODO(), "RunLoop error: "+err.Error())
+		}
+	}()
+	// time.Sleep(time.Second)
+
+	// // Open a stream
+	// LiveStreamService.OpenStream("test1", "test2", "test")
+	// LiveStreamService.CloseStream("test2")
 }
