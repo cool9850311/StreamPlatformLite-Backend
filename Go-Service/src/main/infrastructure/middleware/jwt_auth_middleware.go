@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
+	"Go-Service/src/main/infrastructure/dto"
 	"context"
 	"net/http"
 	"strings"
@@ -13,11 +13,6 @@ import (
 )
 
 // Claims defines the structure of JWT claims
-type Claims struct {
-	UserID string
-	Role   role.Role
-	jwt.StandardClaims
-}
 
 // JWTAuthMiddleware handles JWT authentication and authorization
 func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
@@ -30,7 +25,7 @@ func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 		}
 
 		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
-		claims := &Claims{}
+		claims := &dto.Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte(config.AppConfig.JWT.SecretKey), nil
 		})

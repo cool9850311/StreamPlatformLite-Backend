@@ -3,7 +3,7 @@ package controller
 import (
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
-	"Go-Service/src/main/infrastructure/middleware"
+	"Go-Service/src/main/infrastructure/dto"
 	"Go-Service/src/main/infrastructure/repository"
 	"net/http"
 	"time"
@@ -61,11 +61,12 @@ func (ac *AuthController) Login(c *gin.Context) {
 	}
 
 	// Create a new token with claims
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, middleware.Claims{
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dto.Claims{
 		UserID: user.ID,
 		Role:   user.Role,
+		IdentityProvider: "none",
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 1).Unix(), // Token expires in 1 hour
+			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Token expires in 1 day
 		},
 	})
 
