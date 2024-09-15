@@ -1,7 +1,0 @@
-server:
-  port: 8080
-mongodb:
-  uri: "mongodb://root:example@localhost:27017/"
-  database: "go_service"
-app:
-  secret_key: "m6zr8Z1NL3ctUi2lcF8QEtZxI"
