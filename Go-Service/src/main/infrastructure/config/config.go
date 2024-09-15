@@ -2,11 +2,11 @@
 package config
 
 import (
-	"Go-Service/src/main/infrastructure/util"
 	"log"
 	"os"
-
-	"github.com/spf13/viper"
+	"strconv"
+	"Go-Service/src/main/infrastructure/util"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -25,19 +25,23 @@ type Config struct {
 var AppConfig Config
 
 func LoadConfig() {
-	workingdir, err := os.Getwd()
+	// Load .env file
+	projectRootPath, err := util.GetProjectRootPath()
 	if err != nil {
-		log.Fatalf("%s", err)
+		log.Fatalf("Error getting project root path: %s", err)
 	}
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(util.TrimPathToBase(workingdir, "Go-Service") + "/src/resource")
-
-	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config file, %s", err)
+	err = godotenv.Load(projectRootPath + "/.env")
+	if err != nil {
+		log.Fatalf("Error loading .env file")
 	}
 
-	if err := viper.Unmarshal(&AppConfig); err != nil {
-		log.Fatalf("Error unmarshaling config, %s", err)
+	// Read environment variables
+	port, err := strconv.Atoi(os.Getenv("SERVER_PORT"))
+	if err != nil {
+		log.Fatalf("Invalid SERVER_PORT: %s", err)
 	}
+	AppConfig.Server.Port = port
+	AppConfig.MongoDB.URI = os.Getenv("MONGODB_URI")
+	AppConfig.MongoDB.Database = os.Getenv("MONGODB_DATABASE")
+	AppConfig.JWT.SecretKey = os.Getenv("APP_SECRET_KEY")
 }
