@@ -6,7 +6,7 @@ import (
 	"Go-Service/src/main/domain/entity"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/interface/logger"
-	"Go-Service/src/main/infrastructure/middleware"
+	"Go-Service/src/main/infrastructure/dto"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -19,7 +19,7 @@ type SkeletonController struct {
 
 func (c *SkeletonController) GetSkeleton(ctx *gin.Context) {
 	id := ctx.Param("id")
-	claims := ctx.Request.Context().Value("claims").(*middleware.Claims)
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
 	skeleton, err := c.SkeletonUseCase.GetSkeletonByID(ctx, id, claims.Role)
 	if err != nil {
 		if err == errors.ErrUnauthorized {
@@ -39,7 +39,7 @@ func (c *SkeletonController) CreateSkeleton(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	claims := ctx.Request.Context().Value("claims").(*middleware.Claims)
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
 	err := c.SkeletonUseCase.CreateSkeleton(ctx, &skeleton, claims.Role)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to create skeleton"})
