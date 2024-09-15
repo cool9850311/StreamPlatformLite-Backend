@@ -7,23 +7,12 @@ import (
 	"strconv"
 	"Go-Service/src/main/infrastructure/util"
 	"github.com/joho/godotenv"
+	"Go-Service/src/main/application/dto/config"
 )
 
-type Config struct {
-	Server struct {
-		Port int `mapstructure:"port"`
-	} `mapstructure:"server"`
-	MongoDB struct {
-		URI      string `mapstructure:"uri"`
-		Database string `mapstructure:"database"`
-	} `mapstructure:"mongodb"`
-	JWT struct {
-		SecretKey string `mapstructure:"secretKey"`
-	} `mapstructure:"JWT"`
-}
 
-var AppConfig Config
 
+var AppConfig config.Config
 func LoadConfig() {
 	// Load .env file
 	projectRootPath, err := util.GetProjectRootPath()
@@ -44,4 +33,13 @@ func LoadConfig() {
 	AppConfig.MongoDB.URI = os.Getenv("MONGODB_URI")
 	AppConfig.MongoDB.Database = os.Getenv("MONGODB_DATABASE")
 	AppConfig.JWT.SecretKey = os.Getenv("APP_SECRET_KEY")
+	AppConfig.Discord.ClientID = os.Getenv("DISCORD_CLIENT_ID")
+	AppConfig.Discord.ClientSecret = os.Getenv("DISCORD_CLIENT_SECRET")
+	AppConfig.Discord.AdminID = os.Getenv("DISCORD_ADMIN_ID")
+	AppConfig.Discord.GuildID = os.Getenv("DISCORD_GUILD_ID")
+	AppConfig.Domain = os.Getenv("DOMAIN")
+	AppConfig.HTTPS, err = strconv.ParseBool(os.Getenv("HTTPS"))
+	if err != nil {
+		log.Fatalf("Invalid HTTPS: %s", err)
+	}
 }

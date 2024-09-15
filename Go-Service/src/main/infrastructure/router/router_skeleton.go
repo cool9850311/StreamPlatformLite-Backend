@@ -2,13 +2,13 @@
 package router
 
 import (
+	"Go-Service/src/main/infrastructure/repository"
+	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/controller"
 	"Go-Service/src/main/infrastructure/middleware"
-	"Go-Service/src/main/infrastructure/repository"
-	"Go-Service/src/main/application/interface/stream"
-
+	"Go-Service/src/main/infrastructure/config"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -17,18 +17,21 @@ import (
 func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService) *gin.Engine {
 	r := gin.Default()
 
+	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
+	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig)
 	skeletonRepo := repository.NewMongoSkeletonRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	skeletonUseCase := &usecase.SkeletonUseCase{SkeletonRepo: skeletonRepo, Log: log}
 	skeletonController := &controller.SkeletonController{SkeletonUseCase: skeletonUseCase, Log: log}
 	authController := &controller.AuthController{Log: log, UserRepository: userRepo}
-	liveStreamController := &controller.LiveStreamController{Log: log} 
+	liveStreamController := &controller.LiveStreamController{Log: log}
+	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 
 	// Add CORS middleware to allow all origins
 	r.Use(cors.New(cors.Config{
-		AllowAllOrigins: true,
-		AllowMethods:    []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:    []string{"Origin", "Content-Type", "Authorization"},
+		AllowAllOrigins:  true,
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
 
@@ -47,6 +50,7 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 
 	r.Use(middleware.TraceIDMiddleware())
 	r.POST("/login", authController.Login)
+	r.GET("/oauth/discord", discordOauthController.Callback)
 	r.GET("/skeletons/:id", middleware.JWTAuthMiddleware(log), skeletonController.GetSkeleton)
 	r.POST("/skeletons", middleware.JWTAuthMiddleware(log), skeletonController.CreateSkeleton)
 	r.GET("/livestream/:uuid/:filename", liveStreamController.GetFile) // Added route for LiveStreamController

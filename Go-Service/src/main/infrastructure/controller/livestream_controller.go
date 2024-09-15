@@ -6,6 +6,7 @@ import (
 	"os"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"Go-Service/src/main/infrastructure/message"
 	"Go-Service/src/main/infrastructure/util"
 	"net/http"
 )
@@ -38,7 +39,7 @@ func (c *LiveStreamController) GetFile(ctx *gin.Context) {
 	// Handle preflight request
 	rootPath, err := util.GetProjectRootPath()
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to get file"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
 	// Set Content-Length and Content-Type headers
