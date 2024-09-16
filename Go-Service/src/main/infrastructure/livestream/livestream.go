@@ -27,6 +27,7 @@ type livestream struct {
 	uuid      string
 	conn      net.Conn
 	apiKey    string
+	outputPathUUID string
 }
 
 func NewLivestreamService(logger logger.Logger) *LivestreamService {
@@ -80,7 +81,7 @@ func (l *LivestreamService) handleTcpConnect(conn net.Conn) error {
 					l.logger.Error(context.TODO(), "Failed to get project root path: " + err.Error())
 					return
 				}
-				outputPath := rootPath + "/hls/" + stream.uuid
+				outputPath := rootPath + "/hls/" + stream.outputPathUUID
 				hlsMuxerConfig := hls.MuxerConfig{
 					OutPath:            outputPath,
 					FragmentDurationMs: 500,
@@ -130,12 +131,13 @@ func (l *LivestreamService) IsLiveStreamExist(uuid string) bool {
 }
 
 
-func (l *LivestreamService) OpenStream(name, uuid, apiKey string) error {
+func (l *LivestreamService) OpenStream(name, uuid, apiKey string, outputPathUUID string) error {
 	// Create a new livestream instance
 	newStream := &livestream{
 		name:      name,
 		uuid:      uuid,
 		apiKey:    apiKey,
+		outputPathUUID: outputPathUUID,
 	}
 
 	l.streams[uuid] = newStream
@@ -165,4 +167,14 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 		l.logger.Warn(context.TODO(), "No livestream found with uuid: " + uuid)
 	}
 	return nil
+}
+
+func (l *LivestreamService) UpdateStreamOutPutPathUUID(uuid, outputPathUUID string) error {
+	if stream, exists := l.streams[uuid]; exists {
+		stream.conn.Close()
+		stream.outputPathUUID = outputPathUUID
+		l.streams[uuid] = stream
+		return nil
+	}
+	return errors.ErrNotFound
 }

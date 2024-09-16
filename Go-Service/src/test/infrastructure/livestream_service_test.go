@@ -32,7 +32,15 @@ func TestLivestreamService(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Open a stream
-	err = service.OpenStream("test", "test", "test")
+	service.OpenStream("test1", "1111111", "test", "test2")
+	// Wait for 30 seconds
+	time.Sleep(30 * time.Second)
+
+	// Update the stream API key
+	err = service.UpdateStreamOutPutPathUUID("1111111", "newApiKey")
+	if err != nil {
+		t.Fatalf("Failed to update stream API key: %v", err)
+	}
 	if err != nil {
 		t.Fatalf("Failed to open stream: %v", err)
 	}
