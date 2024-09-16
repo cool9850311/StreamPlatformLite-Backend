@@ -45,15 +45,17 @@ func (c *LiveStreamController) GetFile(ctx *gin.Context) {
 	// Set Content-Length and Content-Type headers
 	filePath := filepath.Clean(rootPath + "/hls/" + ctx.Param("uuid") + "/" + filename)
 	fileInfo, err := os.Stat(filePath)
-	if err == nil {
-		ctx.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
+		return
 	}
 
+	ctx.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 	if filepath.Ext(filename) == ".m3u8" {
 		ctx.Header("Content-Type", "application/vnd.apple.mpegurl") // for .m3u8
 	} else if filepath.Ext(filename) == ".ts" {
 		ctx.Header("Content-Type", "video/mp2t") // for .ts
 	}
-
+	
 	ctx.File(filePath)
 }
