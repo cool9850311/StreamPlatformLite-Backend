@@ -2,6 +2,8 @@ package util
 
 import (
 	"strings"
+	"crypto/rand"
+    "encoding/base64"
 )
 
 func TrimPathToBase(path, base string) string {
@@ -12,4 +14,11 @@ func TrimPathToBase(path, base string) string {
 
 	trimmedPath := path[:index+len(base)]
 	return trimmedPath
+}
+func GenerateRandomBase64String(length int) (string, error) {
+    bytes := make([]byte, length)
+    if _, err := rand.Read(bytes); err != nil {
+        return "", err
+    }
+    return base64.URLEncoding.EncodeToString(bytes), nil
 }

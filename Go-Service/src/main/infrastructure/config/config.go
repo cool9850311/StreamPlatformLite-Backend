@@ -37,8 +37,8 @@ func LoadConfig() {
 	AppConfig.Discord.ClientSecret = os.Getenv("DISCORD_CLIENT_SECRET")
 	AppConfig.Discord.AdminID = os.Getenv("DISCORD_ADMIN_ID")
 	AppConfig.Discord.GuildID = os.Getenv("DISCORD_GUILD_ID")
-	AppConfig.Domain = os.Getenv("DOMAIN")
-	AppConfig.HTTPS, err = strconv.ParseBool(os.Getenv("HTTPS"))
+	AppConfig.Server.Domain = os.Getenv("DOMAIN")
+	AppConfig.Server.HTTPS, err = strconv.ParseBool(os.Getenv("HTTPS"))
 	if err != nil {
 		log.Fatalf("Invalid HTTPS: %s", err)
 	}

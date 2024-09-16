@@ -2,13 +2,14 @@
 package router
 
 import (
-	"Go-Service/src/main/infrastructure/repository"
 	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/interface/logger"
+	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/controller"
 	"Go-Service/src/main/infrastructure/middleware"
-	"Go-Service/src/main/infrastructure/config"
+	"Go-Service/src/main/infrastructure/repository"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -26,8 +27,11 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	skeletonUseCase := &usecase.SkeletonUseCase{SkeletonRepo: skeletonRepo, Log: log}
 	skeletonController := &controller.SkeletonController{SkeletonUseCase: skeletonUseCase, Log: log}
 	authController := &controller.AuthController{Log: log, UserRepository: userRepo}
-	liveStreamController := &controller.LiveStreamController{Log: log}
+	liveStreamHLSController := &controller.LiveStreamHLSController{Log: log}
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
+	livestreamRepo := repository.NewMongoLivestreamRepository(db)
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService)
+	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
 
 	// Add CORS middleware to allow all origins
 	r.Use(cors.New(cors.Config{
@@ -55,9 +59,14 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r.GET("/oauth/discord", discordOauthController.Callback)
 	r.GET("/skeletons/:id", middleware.JWTAuthMiddleware(log), skeletonController.GetSkeleton)
 	r.POST("/skeletons", middleware.JWTAuthMiddleware(log), skeletonController.CreateSkeleton)
-	r.GET("/livestream/:uuid/:filename", liveStreamController.GetFile) // Added route for LiveStreamController
+	r.GET("/livestream/:uuid/:filename", liveStreamHLSController.GetFile)
 	r.GET("/system-settings", middleware.JWTAuthMiddleware(log), systemSettingController.GetSetting)
 	r.PATCH("/system-settings", middleware.JWTAuthMiddleware(log), systemSettingController.SetSetting)
+	r.POST("/livestream", middleware.JWTAuthMiddleware(log), livestreamController.CreateLivestream)
+	r.GET("/livestream/owner/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByOwnerId)
+	r.GET("/livestream/one", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamOne)
+	r.PATCH("/livestream/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.UpdateLivestream)
+	r.DELETE("/livestream/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.DeleteLivestream)
 
 	return r
 }
