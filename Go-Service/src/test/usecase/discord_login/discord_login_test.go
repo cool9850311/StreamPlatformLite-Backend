@@ -1,44 +1,22 @@
 package usecase
 
 import (
-	"context"
-	"errors"
 	"Go-Service/src/main/application/dto/config"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/main/domain/entity/system"
+	"context"
+	"errors"
 	"testing"
 
+	"Go-Service/src/test/usecase/mock_data"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-// MockSystemSettingRepository is a mock implementation of SystemSettingRepository
-type MockSystemSettingRepository struct {
-	mock.Mock
-}
-
-func (m *MockSystemSettingRepository) GetSetting() (*system.Setting, error) {
-	args := m.Called()
-	if args.Get(0) != nil {
-		return args.Get(0).(*system.Setting), args.Error(1)
-	}
-	return nil, args.Error(1)
-}
-
-type MockLogger struct{}
-
-func (m *MockLogger) Panic(ctx context.Context, msg string) {}
-func (m *MockLogger) Fatal(ctx context.Context, msg string) {}
-func (m *MockLogger) Error(ctx context.Context, msg string) {}
-func (m *MockLogger) Warn(ctx context.Context, msg string)  {}
-func (m *MockLogger) Info(ctx context.Context, msg string)  {}
-func (m *MockLogger) Debug(ctx context.Context, msg string) {}
-func (m *MockLogger) Trace(ctx context.Context, msg string) {}
-
-func setup() (*MockSystemSettingRepository, *MockLogger, usecase.DiscordLoginUseCase) {
-	mockRepo := new(MockSystemSettingRepository)
-	mockLogger := new(MockLogger)
+func setup() (*mock_data.MockSystemSettingRepository, *mock_data.MockLogger, usecase.DiscordLoginUseCase) {
+	mockRepo := new(mock_data.MockSystemSettingRepository)
+	mockLogger := new(mock_data.MockLogger)
 
 	cfg := config.Config{
 		Discord: struct {
@@ -52,7 +30,7 @@ func setup() (*MockSystemSettingRepository, *MockLogger, usecase.DiscordLoginUse
 	}
 
 	useCase := usecase.NewDiscordLoginUseCase(mockRepo, mockLogger, cfg)
-	return mockRepo, mockLogger, *useCase  // Dereference the pointer
+	return mockRepo, mockLogger, *useCase // Dereference the pointer
 }
 
 func TestDiscordLoginUseCase_AdminUser(t *testing.T) {
