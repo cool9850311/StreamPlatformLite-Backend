@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -48,16 +49,16 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 
 	// Check if HTTPS is enabled and construct the redirect URI accordingly
 	var scheme string
-	if config.AppConfig.HTTPS {
+	if config.AppConfig.Server.HTTPS {
 		scheme = "https://"
 	} else {
 		scheme = "http://"
 	}
-	redirectURI := scheme + config.AppConfig.Domain + "/oauth/discord"
+	redirectURI := scheme + config.AppConfig.Server.Domain + ":" + strconv.Itoa(config.AppConfig.Server.Port) + "/oauth/discord"
 	data.Set("redirect_uri", redirectURI)
 
 	// Check if required Discord configuration fields exist
-	if config.AppConfig.Discord.ClientID == "" || config.AppConfig.Discord.ClientSecret == "" || config.AppConfig.Domain == "" || config.AppConfig.Discord.AdminID == "" || config.AppConfig.Discord.GuildID == "" {
+	if config.AppConfig.Discord.ClientID == "" || config.AppConfig.Discord.ClientSecret == "" || config.AppConfig.Server.Domain == "" || config.AppConfig.Discord.AdminID == "" || config.AppConfig.Discord.GuildID == "" {
 		c.Log.Error(ctx, "Incomplete Discord configuration")
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return

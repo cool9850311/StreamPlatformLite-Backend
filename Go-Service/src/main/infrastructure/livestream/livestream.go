@@ -3,19 +3,19 @@ package livestream
 import (
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/interface/logger"
+	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"net"
-	"sync"
-	"strings"
-	"Go-Service/src/main/infrastructure/util"
-	"github.com/cool9850311/lal-StreamPlatformLite/pkg/rtmp"
-	"path/filepath"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/base"
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/hls"
 	"github.com/cool9850311/lal-StreamPlatformLite/pkg/remux"
+	"github.com/cool9850311/lal-StreamPlatformLite/pkg/rtmp"
 )
-
 
 type LivestreamService struct {
 	listener net.Listener
@@ -23,10 +23,10 @@ type LivestreamService struct {
 	streams  map[string]*livestream
 }
 type livestream struct {
-	name      string
-	uuid      string
-	conn      net.Conn
-	apiKey    string
+	name           string
+	uuid           string
+	conn           net.Conn
+	apiKey         string
 	outputPathUUID string
 }
 
@@ -71,14 +71,14 @@ func (l *LivestreamService) handleTcpConnect(conn net.Conn) error {
 			stream, found := l.getLivestreamByUrl(session.Url())
 			if !found {
 				session.Dispose()
-				l.logger.Warn(context.TODO(), "Unauthorized livestream attempt: " + session.Url())
+				l.logger.Warn(context.TODO(), "Unauthorized livestream attempt: "+session.Url())
 				return nil
 			}
 
 			once.Do(func() {
 				rootPath, err := util.GetProjectRootPath()
 				if err != nil {
-					l.logger.Error(context.TODO(), "Failed to get project root path: " + err.Error())
+					l.logger.Error(context.TODO(), "Failed to get project root path: "+err.Error())
 					return
 				}
 				outputPath := rootPath + "/hls/" + stream.outputPathUUID
@@ -92,7 +92,7 @@ func (l *LivestreamService) handleTcpConnect(conn net.Conn) error {
 				hlsMuxer.Start()
 				rtmp2Mpegts = remux.NewRtmp2MpegtsRemuxer(hlsMuxer)
 				stream.conn = conn
-				l.logger.Info(context.TODO(), "Started livestream: %s"+ stream.name)
+				l.logger.Info(context.TODO(), "Started livestream: %s"+stream.name)
 			})
 		case base.RtmpTypeIdWinAckSize:
 			_ = session.DoWinAckSize(stream)
@@ -130,18 +130,16 @@ func (l *LivestreamService) IsLiveStreamExist(uuid string) bool {
 	return exists
 }
 
-
 func (l *LivestreamService) OpenStream(name, uuid, apiKey string, outputPathUUID string) error {
 	// Create a new livestream instance
 	newStream := &livestream{
-		name:      name,
-		uuid:      uuid,
-		apiKey:    apiKey,
+		name:           name,
+		uuid:           uuid,
+		apiKey:         apiKey,
 		outputPathUUID: outputPathUUID,
 	}
 
 	l.streams[uuid] = newStream
-
 
 	return nil
 }
@@ -154,17 +152,19 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 		if err != nil {
 			l.logger.Error(context.TODO(), "Failed to get project root path: "+err.Error())
 		} else {
-			hlsDir := filepath.Join(rootPath, "hls", uuid)
+			stream.conn.Close()
+			hlsDir := filepath.Join(rootPath, "hls", stream.outputPathUUID)
 			err = os.RemoveAll(hlsDir)
+			
 			if err != nil {
 				l.logger.Error(context.TODO(), "Failed to delete HLS directory: "+err.Error())
 			} else {
 				l.logger.Info(context.TODO(), "Deleted HLS directory: "+hlsDir)
 			}
 		}
-		l.logger.Info(context.TODO(), "Closed livestream: " + stream.name)
+		l.logger.Info(context.TODO(), "Closed livestream: "+stream.name)
 	} else {
-		l.logger.Warn(context.TODO(), "No livestream found with uuid: " + uuid)
+		l.logger.Warn(context.TODO(), "No livestream found with uuid: "+uuid)
 	}
 	return nil
 }

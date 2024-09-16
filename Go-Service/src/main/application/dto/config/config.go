@@ -1,7 +1,10 @@
 package config
+
 type Config struct {
 	Server struct {
-		Port int `mapstructure:"port"`
+		Port   int    `mapstructure:"port"`
+		Domain string `mapstructure:"domain"`
+		HTTPS  bool   `mapstructure:"https" default:"false"`
 	} `mapstructure:"server"`
 	MongoDB struct {
 		URI      string `mapstructure:"uri"`
@@ -16,6 +19,4 @@ type Config struct {
 		AdminID      string `mapstructure:"adminId"`
 		GuildID      string `mapstructure:"guildId"`
 	} `mapstructure:"discord"`
-	Domain string `mapstructure:"domain"`
-	HTTPS  bool   `mapstructure:"https" default:"false"`
 }
