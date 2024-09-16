@@ -24,3 +24,9 @@ func (r *MongoSystemSettingRepository) GetSetting() (*system.Setting, error) {
 	err := r.collection.FindOne(context.Background(), bson.M{}).Decode(&setting)
 	return &setting, err
 }
+
+func (r *MongoSystemSettingRepository) SetSetting(setting *system.Setting) error {
+	_, err := r.collection.UpdateOne(context.Background(), bson.M{}, setting)
+	return err
+}
+

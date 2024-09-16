@@ -6,4 +6,5 @@ import (
 
 type SystemSettingRepository interface {
 	GetSetting() (*system.Setting, error)
+	SetSetting(setting *system.Setting) error
 }

@@ -18,6 +18,8 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r := gin.Default()
 
 	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
+	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
+	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)
 	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig)
 	skeletonRepo := repository.NewMongoSkeletonRepository(db)
 	userRepo := repository.NewUserRepository(db)
@@ -54,6 +56,8 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r.GET("/skeletons/:id", middleware.JWTAuthMiddleware(log), skeletonController.GetSkeleton)
 	r.POST("/skeletons", middleware.JWTAuthMiddleware(log), skeletonController.CreateSkeleton)
 	r.GET("/livestream/:uuid/:filename", liveStreamController.GetFile) // Added route for LiveStreamController
+	r.GET("/system-settings", middleware.JWTAuthMiddleware(log), systemSettingController.GetSetting)
+	r.PATCH("/system-settings", middleware.JWTAuthMiddleware(log), systemSettingController.SetSetting)
 
 	return r
 }
