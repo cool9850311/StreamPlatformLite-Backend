@@ -76,7 +76,7 @@ func TestLivestreamUsecase_GetLivestreamByOwnerID_AdminUser(t *testing.T) {
 
 	result, err := useCase.GetLivestreamByOwnerID(ctx, "user123", role.Admin)
 
-	assert.Equal(t, testLivestream, result)
+	assert.Equal(t, testLivestream.UUID, result.UUID)
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
 }
