@@ -40,9 +40,14 @@ func (c *LivestreamController) GetLivestreamOne(ctx *gin.Context) {
 	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
 	livestream, err := c.livestreamUseCase.GetOne(ctx, claims.Role)
 	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
+	
 	ctx.JSON(http.StatusOK, livestream)
 }
 
