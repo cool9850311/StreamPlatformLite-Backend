@@ -152,7 +152,9 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 		if err != nil {
 			l.logger.Error(context.TODO(), "Failed to get project root path: "+err.Error())
 		} else {
-			stream.conn.Close()
+			if stream.conn != nil {
+				stream.conn.Close()
+			}
 			hlsDir := filepath.Join(rootPath, "hls", stream.outputPathUUID)
 			err = os.RemoveAll(hlsDir)
 
@@ -171,7 +173,9 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 
 func (l *LivestreamService) UpdateStreamOutPutPathUUID(uuid, outputPathUUID string) error {
 	if stream, exists := l.streams[uuid]; exists {
-		stream.conn.Close()
+		if stream.conn != nil {
+			stream.conn.Close()
+		}
 		stream.outputPathUUID = outputPathUUID
 		l.streams[uuid] = stream
 		return nil

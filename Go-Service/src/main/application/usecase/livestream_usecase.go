@@ -59,7 +59,7 @@ func (u *LivestreamUsecase) GetLivestreamByID(ctx context.Context, id string, us
 	return livestream, nil
 }
 
-func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID string, userRole role.Role) (*livestream.Livestream, error) {
+func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID string, userRole role.Role) (*livestreamDTO.LivestreamGetByOwnerIDResponseDTO, error) {
 	if err := u.checkAdminRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to GetLivestreamByOwnerID")
 		return nil, err
@@ -69,7 +69,17 @@ func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID 
 		u.Log.Error(ctx, "Error getting livestream by owner ID")
 		return nil, err
 	}
-	return livestream, nil
+	livestreamResponse := livestreamDTO.LivestreamGetByOwnerIDResponseDTO{
+		UUID:          livestream.UUID,
+		Name:          livestream.Name,
+		Visibility:    livestream.Visibility,
+		Title:         livestream.Title,
+		Information:   livestream.Information,
+		StreamPushURL: "rtmp://" + u.config.Server.Domain + ":1935/" + livestream.APIKey,
+		BanList:       livestream.BanList,
+		MuteList:      livestream.MuteList,
+	}
+	return &livestreamResponse, nil
 }
 func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*livestreamDTO.LivestreamGetOneResponseDTO, error) {
 	if err := u.checkUserRole(userRole); err != nil {
