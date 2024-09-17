@@ -26,7 +26,7 @@ func NewLivestreamController(log logger.Logger, livestreamUseCase *usecase.Lives
 }
 
 func (c *LivestreamController) GetLivestreamByOwnerId(ctx *gin.Context) {
-	id := ctx.Param("uuid")
+	id := ctx.Param("user_id")
 	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
 	livestream, err := c.livestreamUseCase.GetLivestreamByOwnerID(ctx, id, claims.Role)
 	if err != nil {

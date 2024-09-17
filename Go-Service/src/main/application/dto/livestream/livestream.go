@@ -20,3 +20,13 @@ type LivestreamGetOneResponseDTO struct {
 	Information string `json:"information"`
 	StreamURL   string `json:"streamURL"`
 }
+type LivestreamGetByOwnerIDResponseDTO struct {
+	UUID          string                `json:"uuid"`
+	Name          string                `json:"name"`
+	Visibility    livestream.Visibility `json:"visibility"`
+	Title         string                `json:"title"`
+	Information   string                `json:"information"`
+	StreamPushURL string                `json:"streamPushURL"`
+	BanList       []string              `json:"ban_list"`
+	MuteList      []string              `json:"mute_list"`
+}
