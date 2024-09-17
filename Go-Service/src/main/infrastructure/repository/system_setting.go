@@ -26,7 +26,7 @@ func (r *MongoSystemSettingRepository) GetSetting() (*system.Setting, error) {
 }
 
 func (r *MongoSystemSettingRepository) SetSetting(setting *system.Setting) error {
-	_, err := r.collection.UpdateOne(context.Background(), bson.M{}, setting)
+	_, err := r.collection.UpdateOne(context.Background(), bson.M{}, bson.M{"$set": setting})
 	return err
 }
 
