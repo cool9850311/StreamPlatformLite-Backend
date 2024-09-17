@@ -36,7 +36,7 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	// Add CORS middleware to allow all origins
 	r.Use(cors.New(cors.Config{
 		AllowAllOrigins:  true,
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
@@ -45,7 +45,7 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r.Use(func(c *gin.Context) {
 		if c.Request.Method == "OPTIONS" {
 			c.Header("Access-Control-Allow-Origin", "*")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
 			c.Header("Access-Control-Allow-Credentials", "true")
 			c.Status(200)
