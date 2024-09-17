@@ -38,6 +38,11 @@ func LoadConfig() {
 	AppConfig.Discord.AdminID = os.Getenv("DISCORD_ADMIN_ID")
 	AppConfig.Discord.GuildID = os.Getenv("DISCORD_GUILD_ID")
 	AppConfig.Server.Domain = os.Getenv("DOMAIN")
+	AppConfig.Frontend.Domain = os.Getenv("FRONTEND_DOMAIN")
+	AppConfig.Frontend.Port, err = strconv.Atoi(os.Getenv("FRONTEND_PORT"))
+	if err != nil {
+		log.Fatalf("Invalid FRONTEND_PORT: %s", err)
+	}
 	AppConfig.Server.HTTPS, err = strconv.ParseBool(os.Getenv("HTTPS"))
 	if err != nil {
 		log.Fatalf("Invalid HTTPS: %s", err)

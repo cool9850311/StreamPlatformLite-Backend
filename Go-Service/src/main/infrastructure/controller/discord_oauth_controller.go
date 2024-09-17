@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+	"fmt"
 
 	"github.com/dgrijalva/jwt-go"
 
@@ -58,7 +59,12 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	data.Set("redirect_uri", redirectURI)
 
 	// Check if required Discord configuration fields exist
-	if config.AppConfig.Discord.ClientID == "" || config.AppConfig.Discord.ClientSecret == "" || config.AppConfig.Server.Domain == "" || config.AppConfig.Discord.AdminID == "" || config.AppConfig.Discord.GuildID == "" {
+	if config.AppConfig.Discord.ClientID == "" || 
+	config.AppConfig.Discord.ClientSecret == "" || 
+	config.AppConfig.Server.Domain == "" || 
+	config.AppConfig.Frontend.Domain == "" ||
+	config.AppConfig.Discord.AdminID == "" || 
+	config.AppConfig.Discord.GuildID == "" {
 		c.Log.Error(ctx, "Incomplete Discord configuration")
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
@@ -164,5 +170,12 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
-	ctx.JSON(http.StatusOK, gin.H{"token": tokenString})
+	if config.AppConfig.Server.HTTPS {
+		redirectURL := fmt.Sprintf("https://%s?token=%s", config.AppConfig.Frontend.Domain, tokenString)
+		ctx.Redirect(http.StatusFound, redirectURL)
+		return
+	} 
+	redirectURL := fmt.Sprintf("http://%s:%s?token=%s", config.AppConfig.Frontend.Domain, strconv.Itoa(config.AppConfig.Frontend.Port), tokenString)
+	ctx.Redirect(http.StatusFound, redirectURL)
+
 }
