@@ -6,6 +6,10 @@ type Config struct {
 		Domain string `mapstructure:"domain"`
 		HTTPS  bool   `mapstructure:"https" default:"false"`
 	} `mapstructure:"server"`
+	Frontend struct {
+		Domain string `mapstructure:"domain"`
+		Port   int    `mapstructure:"port"`
+	} `mapstructure:"frontend"`
 	MongoDB struct {
 		URI      string `mapstructure:"uri"`
 		Database string `mapstructure:"database"`
