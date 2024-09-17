@@ -85,7 +85,7 @@ func (l *LivestreamService) handleTcpConnect(conn net.Conn) error {
 				hlsMuxerConfig := hls.MuxerConfig{
 					OutPath:            outputPath,
 					FragmentDurationMs: 500,
-					FragmentNum:        20,
+					FragmentNum:        5,
 					CleanupMode:        2,
 				}
 				hlsMuxer := hls.NewMuxer(stream.name, &hlsMuxerConfig, nil)
@@ -155,7 +155,7 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 			stream.conn.Close()
 			hlsDir := filepath.Join(rootPath, "hls", stream.outputPathUUID)
 			err = os.RemoveAll(hlsDir)
-			
+
 			if err != nil {
 				l.logger.Error(context.TODO(), "Failed to delete HLS directory: "+err.Error())
 			} else {
