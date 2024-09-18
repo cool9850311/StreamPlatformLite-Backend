@@ -30,7 +30,7 @@ func setup() *gin.Engine {
 	initializer.InitLog()
 	initializer.InitConfig()
 	initializer.InitMongoClient()
-	initializer.InitLiveStreamService(initializer.Log)
+	initializer.InitLiveStreamService(initializer.Log, initializer.DB)
 
 	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService)
 

@@ -17,9 +17,9 @@ func main() {
 	logger.Info(context.TODO(), "start InitMongoClient")
 	initializer.InitMongoClient()
 	logger.Info(context.TODO(), "start InitLiveStreamService")
-	initializer.InitLiveStreamService(logger) // Pass logger to InitLiveStreamService
+	initializer.InitLiveStreamService(logger, initializer.DB) 
 	logger.Info(context.TODO(), "start router")
-	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService) // Inject LiveStreamService
+	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService)
 	logger.Info(context.TODO(), "Server starting...")
 
 	serverPort := config.AppConfig.Server.Port
