@@ -158,6 +158,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dto.Claims{
 		UserID:           discordId,
+		UserName:         guildMemberData.User.GlobalName,
 		Role:             userRole,
 		IdentityProvider: "Discord",
 		StandardClaims: jwt.StandardClaims{
