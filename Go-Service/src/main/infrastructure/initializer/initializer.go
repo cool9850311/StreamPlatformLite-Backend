@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/infrastructure/livestream"
+	"Go-Service/src/main/infrastructure/repository"
 )
 
 var Client *mongo.Client
@@ -83,7 +84,7 @@ func CleanupMongo() {
 	Client.Disconnect(ctx)
 }
 
-func InitLiveStreamService(log domainLogger.Logger) {
+func InitLiveStreamService(log domainLogger.Logger, db *mongo.Database) {
 	LiveStreamService = livestream.NewLivestreamService(log)
 
 	// Start the service
@@ -99,6 +100,14 @@ func InitLiveStreamService(log domainLogger.Logger) {
 			log.Fatal(context.TODO(), "RunLoop error: "+err.Error())
 		}
 	}()
+	livestreamRepo := repository.NewMongoLivestreamRepository(db)
+	result, err := livestreamRepo.GetOne()
+	if err != nil {
+		log.Info(context.TODO(), "No Stream Found"+err.Error())
+		return
+	}
+	LiveStreamService.OpenStream(result.Name, result.UUID, result.APIKey, result.OutputPathUUID)
+	log.Info(context.TODO(), "Livestream Started: "+result.UUID)
 	// time.Sleep(time.Second)
 
 	// // Open a stream
