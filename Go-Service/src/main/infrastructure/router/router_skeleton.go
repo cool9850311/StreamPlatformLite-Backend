@@ -32,7 +32,8 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
-	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache)
+	chatCache := cache.NewRedisChat(redisClient)
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
 
 	// Add CORS middleware to allow all origins
@@ -70,6 +71,8 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r.PATCH("/livestream/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.UpdateLivestream)
 	r.DELETE("/livestream/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.DeleteLivestream)
 	r.GET("/livestream/ping-viewer-count/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.PingViewerCount)
-
+	r.GET("/livestream/chat/:uuid/:index", middleware.JWTAuthMiddleware(log), livestreamController.GetChat)
+	r.POST("/livestream/chat", middleware.JWTAuthMiddleware(log), livestreamController.AddChat)
+	r.DELETE("/livestream/chat/:uuid/:chat_id", middleware.JWTAuthMiddleware(log), livestreamController.RemoveViewerCount)
 	return r
 }

@@ -3,6 +3,7 @@ package controller
 import (
 	livestreamDTO "Go-Service/src/main/application/dto/livestream"
 	"Go-Service/src/main/application/usecase"
+	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/interface/logger"
@@ -47,7 +48,7 @@ func (c *LivestreamController) GetLivestreamOne(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
-	
+
 	ctx.JSON(http.StatusOK, livestream)
 }
 
@@ -105,4 +106,46 @@ func (c *LivestreamController) PingViewerCount(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"viewer_count": viewerCount})
-}		
+}
+func (c *LivestreamController) GetChat(ctx *gin.Context) {
+	id := ctx.Param("uuid")
+	indexStr := ctx.Param("index")
+
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	chats, err := c.livestreamUseCase.GetChat(ctx, claims.Role, id, indexStr)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+	ctx.JSON(http.StatusOK, chats)
+}
+func (c *LivestreamController) AddChat(ctx *gin.Context) {
+	var chatRequest livestreamDTO.LivestreamAddChatRequestDTO
+	if err := ctx.ShouldBindJSON(&chatRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	chat := chat.Chat{
+		UserID:   claims.UserID,
+		Username: claims.UserName,
+		Message:  chatRequest.Message,
+	}
+	err := c.livestreamUseCase.AddChat(ctx, claims.Role, chatRequest.StreamUUID, chat)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+	ctx.JSON(http.StatusOK, "Chat added")
+}
+func (c *LivestreamController) RemoveViewerCount(ctx *gin.Context) {
+	id := ctx.Param("uuid")
+	chatID := ctx.Param("chat_id")
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	err := c.livestreamUseCase.DeleteChat(ctx, claims.Role, id, chatID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+	ctx.JSON(http.StatusOK, "Chat deleted")
+}

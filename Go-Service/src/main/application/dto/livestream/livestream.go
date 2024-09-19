@@ -30,3 +30,7 @@ type LivestreamGetByOwnerIDResponseDTO struct {
 	BanList       []string              `json:"ban_list"`
 	MuteList      []string              `json:"mute_list"`
 }
+type LivestreamAddChatRequestDTO struct {
+	StreamUUID string `json:"stream_uuid"`
+	Message    string `json:"message"`
+}
