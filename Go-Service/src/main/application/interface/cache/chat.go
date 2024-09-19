@@ -8,4 +8,5 @@ type Chat interface {
 	GetChat(livestreamUUID string, index string, count int) ([]chat.Chat, error)
 	AddChat(livestreamUUID string, chat chat.Chat) error
 	DeleteChat(livestreamUUID string, chatID string) error
+	GetDeleteChatIDs(livestreamUUID string) ([]string, error)
 }

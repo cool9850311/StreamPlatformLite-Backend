@@ -24,3 +24,8 @@ func (m *MockChatCache) DeleteChat(livestreamUUID string, chatID string) error {
 	args := m.Called(livestreamUUID, chatID)
 	return args.Error(0)
 }
+
+func (m *MockChatCache) GetDeleteChatIDs(livestreamUUID string) ([]string, error) {
+	args := m.Called(livestreamUUID)
+	return args.Get(0).([]string), args.Error(1)
+}
