@@ -13,7 +13,7 @@ import (
 	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"strconv"
-
+	"Go-Service/src/main/domain/entity/chat"
 	"github.com/google/uuid"
 )
 
@@ -23,15 +23,17 @@ type LivestreamUsecase struct {
 	config           config.Config
 	streamService    stream.ILivestreamService
 	viewerCountCache cache.ViewerCount
+	chatCache        cache.Chat
 }
 
-func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount) *LivestreamUsecase {
+func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat) *LivestreamUsecase {
 	return &LivestreamUsecase{
 		LivestreamRepo: livestreamRepo,
 		Log:            log,
 		config:         config,
 		streamService:    streamService,
 		viewerCountCache: viewerCountCache,
+		chatCache:        chatCache,
 	}
 }
 
@@ -44,6 +46,12 @@ func (u *LivestreamUsecase) checkAdminRole(userRole role.Role) error {
 
 func (u *LivestreamUsecase) checkUserRole(userRole role.Role) error {
 	if userRole > role.User {
+		return errors.ErrUnauthorized
+	}
+	return nil
+}
+func (u *LivestreamUsecase) checkEditorRole(userRole role.Role) error {
+	if userRole > role.Editor {
 		return errors.ErrUnauthorized
 	}
 	return nil
@@ -200,11 +208,47 @@ func (u *LivestreamUsecase) PingViewerCount(ctx context.Context, userRole role.R
 	}
 	return viewerCount, nil
 }
-// remove every viewer count that is older than 5 seconds
+// remove every viewer count that is older than 5 seconds cron job
 func (u *LivestreamUsecase) RemoveViewerCount(ctx context.Context, livestreamUUID string, seconds int) (int, error) {
 	viewerCount, err := u.viewerCountCache.RemoveViewerCount(livestreamUUID, seconds)
 	if err != nil {
 		return 0, err
 	}
 	return viewerCount, nil
+}
+func (u *LivestreamUsecase) GetChat(ctx context.Context, userRole role.Role, livestreamUUID string, index string) ([]chat.Chat, error) {
+	if err := u.checkUserRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to GetChat")
+		return nil, err
+	}
+	chats, err := u.chatCache.GetChat(livestreamUUID, index, 10)
+	if err != nil {
+		return nil, err
+	}
+	return chats, nil
+}
+func (u *LivestreamUsecase) AddChat(ctx context.Context, userRole role.Role, livestreamUUID string, chat chat.Chat) error {
+	if err := u.checkUserRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to AddChat")
+		return err
+	}
+	if len(chat.Message) > 100 {
+		return errors.ErrInvalidInput
+	}
+	err := u.chatCache.AddChat(livestreamUUID, chat)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, livestreamUUID string, chatID string) error {
+	if err := u.checkEditorRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to DeleteChat")
+		return err
+	}
+	err := u.chatCache.DeleteChat(livestreamUUID, chatID)
+	if err != nil {
+		return err
+	}
+	return nil
 }

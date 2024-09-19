@@ -21,6 +21,7 @@ func setupLivestream() (*mock_data.MockLivestreamRepository, *mock_data.MockLogg
 	mockLogger := new(mock_data.MockLogger)
 	mockStreamService := new(mock_data.MockLivestreamService)
 	mockViewerCountCache := new(mock_data.MockViewerCountCache)
+	mockChatCache := new(mock_data.MockChatCache)
 	cfg := config.Config{
 		Server: struct {
 			Port   int    `mapstructure:"port"`
@@ -32,7 +33,7 @@ func setupLivestream() (*mock_data.MockLivestreamRepository, *mock_data.MockLogg
 			HTTPS:  false,
 		},
 	}
-	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache)
+	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache, mockChatCache)
 	return mockRepo, mockLogger, *useCase // Dereference the pointer
 }
 
