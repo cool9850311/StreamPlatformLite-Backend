@@ -235,7 +235,19 @@ func (u *LivestreamUsecase) AddChat(ctx context.Context, userRole role.Role, liv
 	if len(chat.Message) > 100 {
 		return errors.ErrInvalidInput
 	}
-	err := u.chatCache.AddChat(livestreamUUID, chat)
+	livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream by ID")
+		return err
+	}
+	if livestream.MuteList != nil {
+		for _, userID := range livestream.MuteList {
+			if userID == chat.UserID {
+				return errors.ErrMuteUser
+			}
+		}
+	}
+	err = u.chatCache.AddChat(livestreamUUID, chat)
 	if err != nil {
 		return err
 	}
@@ -262,4 +274,15 @@ func (u *LivestreamUsecase) GetDeleteChatIDs(ctx context.Context, userRole role.
 		return nil, err
 	}
 	return ids, nil
+}
+func (u *LivestreamUsecase) MuteUser(ctx context.Context, userRole role.Role, livestreamUUID string, userID string) error {
+	if err := u.checkEditorRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to MuteUser")
+		return err
+	}
+	err := u.LivestreamRepo.MuteUser(livestreamUUID, userID)
+	if err != nil {
+		return err
+	}
+	return nil
 }

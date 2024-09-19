@@ -34,3 +34,7 @@ type LivestreamAddChatRequestDTO struct {
 	StreamUUID string `json:"stream_uuid"`
 	Message    string `json:"message"`
 }
+type LivestreamMuteUserRequestDTO struct {
+	StreamUUID string `json:"stream_uuid"`
+	UserID     string `json:"user_id"`
+}

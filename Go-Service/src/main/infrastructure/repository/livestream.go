@@ -52,3 +52,9 @@ func (r *MongoLivestreamRepository) Delete(id string) error {
 	_, err := r.collection.DeleteOne(context.Background(), bson.M{"uuid": id})
 	return err
 }
+func (r *MongoLivestreamRepository) MuteUser(livestreamUUID string, userID string) error {
+	// Add the userID to the MuteList array
+	update := bson.M{"$addToSet": bson.M{"mutelist": userID}}
+	_, err := r.collection.UpdateOne(context.Background(), bson.M{"uuid": livestreamUUID}, update)
+	return err
+}

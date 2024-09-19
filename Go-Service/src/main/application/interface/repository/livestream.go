@@ -9,4 +9,5 @@ type LivestreamRepository interface {
 	Create(livestream *livestream.Livestream) error
 	Update(livestream *livestream.Livestream) error
 	Delete(id string) error
+	MuteUser(livestreamUUID string, userID string) error
 }
