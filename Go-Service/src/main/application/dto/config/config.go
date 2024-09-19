@@ -23,4 +23,7 @@ type Config struct {
 		AdminID      string `mapstructure:"adminId"`
 		GuildID      string `mapstructure:"guildId"`
 	} `mapstructure:"discord"`
+	Redis struct {
+		URI string `mapstructure:"uri"`
+	} `mapstructure:"redis"`
 }

@@ -95,3 +95,14 @@ func (c *LivestreamController) DeleteLivestream(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": "Livestream deleted"})
 }
+
+func (c *LivestreamController) PingViewerCount(ctx *gin.Context) {
+	id := ctx.Param("uuid")
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	viewerCount, err := c.livestreamUseCase.PingViewerCount(ctx, claims.Role, id, claims.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"viewer_count": viewerCount})
+}		

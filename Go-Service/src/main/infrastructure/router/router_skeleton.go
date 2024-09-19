@@ -9,13 +9,14 @@ import (
 	"Go-Service/src/main/infrastructure/controller"
 	"Go-Service/src/main/infrastructure/middleware"
 	"Go-Service/src/main/infrastructure/repository"
-
+	"Go-Service/src/main/infrastructure/cache"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/redis/go-redis/v9"
 )
 
-func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService) *gin.Engine {
+func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {
 	r := gin.Default()
 
 	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
@@ -30,7 +31,8 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	liveStreamHLSController := &controller.LiveStreamHLSController{Log: log}
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
-	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService)
+	viewerCountCache := cache.NewRedisViewerCount(redisClient)
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
 
 	// Add CORS middleware to allow all origins
@@ -67,6 +69,7 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r.GET("/livestream/one", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamOne)
 	r.PATCH("/livestream/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.UpdateLivestream)
 	r.DELETE("/livestream/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.DeleteLivestream)
+	r.GET("/livestream/ping-viewer-count/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.PingViewerCount)
 
 	return r
 }

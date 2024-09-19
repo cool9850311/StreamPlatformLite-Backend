@@ -16,10 +16,14 @@ func main() {
 	initializer.InitConfig()
 	logger.Info(context.TODO(), "start InitMongoClient")
 	initializer.InitMongoClient()
+	logger.Info(context.TODO(), "start InitRedisClient")
+	initializer.InitRedisClient()
 	logger.Info(context.TODO(), "start InitLiveStreamService")
 	initializer.InitLiveStreamService(logger, initializer.DB) 
+	logger.Info(context.TODO(), "start InitCronJob")
+	initializer.InitCronJob(logger, initializer.DB)
 	logger.Info(context.TODO(), "start router")
-	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService)
+	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService, initializer.RedisClient)
 	logger.Info(context.TODO(), "Server starting...")
 
 	serverPort := config.AppConfig.Server.Port
