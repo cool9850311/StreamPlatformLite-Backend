@@ -1,0 +1,61 @@
+# Use root/example as user/password credentials
+version: '3.1'
+
+services:
+
+  mongo:
+    image: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo-data:/data/db
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: root
+      ME_CONFIG_MONGODB_ADMINPASSWORD: example
+      ME_CONFIG_MONGODB_URL: mongodb://root:example@mongo:27017/
+      ME_CONFIG_BASICAUTH: false
+
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - 6379:6379
+
+  go-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8080:8080
+      - 1935:1935
+    depends_on:
+      - mongo
+      - redis
+    environment:
+      SERVER_PORT: 8080
+      MONGODB_URI: mongodb://root:example@mongo:27017
+      MONGODB_DATABASE: go_service
+      APP_SECRET_KEY: your_secret_key
+      DISCORD_CLIENT_ID: your_discord_client_id
+      DISCORD_CLIENT_SECRET: your_discord_client_secret
+      DISCORD_ADMIN_ID: your_discord_admin_id
+      DISCORD_GUILD_ID: your_discord_guild_id
+      DOMAIN: localhost
+      FRONTEND_DOMAIN: localhost
+      FRONTEND_PORT: 3000
+      REDIS_URI: redis:6379
+      HTTPS: "false"
+
+volumes:
+  mongo-data:

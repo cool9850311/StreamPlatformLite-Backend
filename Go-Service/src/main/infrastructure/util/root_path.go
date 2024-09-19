@@ -1,9 +1,9 @@
 package util
+
 import (
 	"os"
 	"path/filepath"
 	"strings"
-	"errors"
 )
 
 func GetGoServiceRootPath() (string, error) {
@@ -11,19 +11,19 @@ func GetGoServiceRootPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// Find the index of "Go-Service/src"
-	index := strings.Index(dir, "Go-Service/src")
+	// Find the index of "src"
+	index := strings.LastIndex(dir, "src")
 	if index == -1 {
-		return "", errors.New("Go-Service/src not found in the current directory path")
+		return "/app/Go-Service", nil
 	}
-	// Return the path up to "Go-Service/"
-	return dir[:index+len("Go-Service")], nil
+	// Return the parent directory of the folder containing "src"
+	return filepath.Dir(dir[:index]), nil
 }
 
 func GetProjectRootPath() (string, error) {
 	goServiceRoot, err := GetGoServiceRootPath()
 	if err != nil {
-		return "", err
+		return "/app", nil
 	}
 	// Return the parent directory of Go-Service/
 	return filepath.Join(goServiceRoot, ".."), nil
