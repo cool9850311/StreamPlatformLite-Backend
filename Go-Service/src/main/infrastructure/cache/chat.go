@@ -78,8 +78,28 @@ func (r *RedisChat) AddChat(livestreamUUID string, chat chat.Chat) error {
 func (r *RedisChat) DeleteChat(livestreamUUID string, chatID string) error {
 	ctx := context.Background()
 	key := "chat_" + livestreamUUID
-
+	deleteKey := "chat_delete_" + livestreamUUID
 	// Delete message from the stream
 	_, err := r.client.XDel(ctx, key, chatID).Result()
+	if err != nil {
+		return err
+	}
+	// Add chatID to the delete list
+	_, err = r.client.RPush(ctx, deleteKey, chatID).Result()
+	if err != nil {
+		return err
+	}
 	return err
+}
+
+func (r *RedisChat) GetDeleteChatIDs(livestreamUUID string) ([]string, error) {
+	ctx := context.Background()
+	key := "chat_delete_" + livestreamUUID
+	// Get all deleted message IDs
+	result, err := r.client.LRange(ctx, key, 0, -1).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

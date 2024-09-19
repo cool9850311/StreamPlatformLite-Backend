@@ -252,3 +252,14 @@ func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, 
 	}
 	return nil
 }
+func (u *LivestreamUsecase) GetDeleteChatIDs(ctx context.Context, userRole role.Role, livestreamUUID string) ([]string, error) {
+	if err := u.checkUserRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to GetDeleteChatIDs")
+		return nil, err
+	}
+	ids, err := u.chatCache.GetDeleteChatIDs(livestreamUUID)
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
