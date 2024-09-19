@@ -75,5 +75,6 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	r.GET("/livestream/chat/delete/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetDeleteChatIDs)
 	r.POST("/livestream/chat", middleware.JWTAuthMiddleware(log), livestreamController.AddChat)
 	r.DELETE("/livestream/chat/:uuid/:chat_id", middleware.JWTAuthMiddleware(log), livestreamController.RemoveViewerCount)
+	r.POST("/livestream/mute-user", middleware.JWTAuthMiddleware(log), livestreamController.MuteUser)
 	return r
 }

@@ -133,6 +133,10 @@ func (c *LivestreamController) AddChat(ctx *gin.Context) {
 	}
 	err := c.livestreamUseCase.AddChat(ctx, claims.Role, chatRequest.StreamUUID, chat)
 	if err != nil {
+		if err == errors.ErrMuteUser {
+			ctx.JSON(http.StatusForbidden, gin.H{"message": message.MsgForbidden})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
@@ -158,4 +162,18 @@ func (c *LivestreamController) GetDeleteChatIDs(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, ids)
+}
+func (c *LivestreamController) MuteUser(ctx *gin.Context) {
+	var muteUserRequest livestreamDTO.LivestreamMuteUserRequestDTO
+	if err := ctx.ShouldBindJSON(&muteUserRequest); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+
+	err := c.livestreamUseCase.MuteUser(ctx, claims.Role, muteUserRequest.StreamUUID, muteUserRequest.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
 }

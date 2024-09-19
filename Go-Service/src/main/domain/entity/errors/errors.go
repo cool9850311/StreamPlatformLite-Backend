@@ -9,5 +9,6 @@ var (
 	ErrInvalidInput     = errors.New("invalid input")
 	ErrConnectionClosed = errors.New("connection closed")
 	ErrExists           = errors.New("already exists")
+	ErrMuteUser         = errors.New("user already muted")
 	// Add other error types as needed
 )
