@@ -8,20 +8,24 @@ import (
 	"context"
 	"log"
 	"time"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"github.com/robfig/cron/v3"
 	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/infrastructure/livestream"
 	"Go-Service/src/main/infrastructure/repository"
+	"Go-Service/src/main/infrastructure/cache"
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"Go-Service/src/main/application/usecase"
 )
 
 var Client *mongo.Client
 var DB *mongo.Database
 var Log domainLogger.Logger
 var LiveStreamService stream.ILivestreamService
-
+var RedisClient *redis.Client
+var cronJob *cron.Cron
 func InitLog() {
 	var err error
 	Log, err = infraLogger.NewLogger("application.log")
@@ -76,6 +80,14 @@ func InitMongoClient() {
 	log.Println("Created unique index on username field")
 }
 
+func InitRedisClient() {
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr:     config.AppConfig.Redis.URI,
+		Password: "",
+		DB:       0,
+	})
+}
+
 func CleanupMongo() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -113,4 +125,21 @@ func InitLiveStreamService(log domainLogger.Logger, db *mongo.Database) {
 	// // Open a stream
 	// LiveStreamService.OpenStream("test1", "test2", "test")
 	// LiveStreamService.CloseStream("test2")
+}
+func InitCronJob(log domainLogger.Logger, db *mongo.Database) {
+	cronJob = cron.New()
+	viewerCountCache := cache.NewRedisViewerCount(RedisClient)
+	livestreamRepo := repository.NewMongoLivestreamRepository(db)
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, LiveStreamService, viewerCountCache)
+	cronJob.AddFunc("@every 10s", func() {
+		log.Info(context.Background(), "Running viewer count cleanup")
+		uuid,err := livestreamRepo.GetOne()
+		if err != nil {
+			log.Error(context.Background(), "Error fetching livestream: "+err.Error())
+			return
+		}
+		livestreamUseCase.RemoveViewerCount(context.Background(), uuid.UUID, 10)
+	})
+	
+	cronJob.Start()
 }

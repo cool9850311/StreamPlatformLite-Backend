@@ -31,8 +31,8 @@ func setup() *gin.Engine {
 	initializer.InitConfig()
 	initializer.InitMongoClient()
 	initializer.InitLiveStreamService(initializer.Log, initializer.DB)
-
-	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService)
+	initializer.InitRedisClient()
+	r := router.NewRouter(initializer.DB, initializer.Log, initializer.LiveStreamService, initializer.RedisClient)
 
 	// Create test user
 	testUser := infra_entity.User{

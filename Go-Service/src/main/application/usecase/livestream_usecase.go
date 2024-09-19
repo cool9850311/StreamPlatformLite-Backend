@@ -3,6 +3,7 @@ package usecase
 import (
 	"Go-Service/src/main/application/dto/config"
 	livestreamDTO "Go-Service/src/main/application/dto/livestream"
+	"Go-Service/src/main/application/interface/cache"
 	"Go-Service/src/main/application/interface/repository"
 	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/domain/entity/errors"
@@ -17,18 +18,20 @@ import (
 )
 
 type LivestreamUsecase struct {
-	LivestreamRepo repository.LivestreamRepository
-	Log            logger.Logger
-	config         config.Config
-	streamService  stream.ILivestreamService
+	LivestreamRepo   repository.LivestreamRepository
+	Log              logger.Logger
+	config           config.Config
+	streamService    stream.ILivestreamService
+	viewerCountCache cache.ViewerCount
 }
 
-func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService) *LivestreamUsecase {
+func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount) *LivestreamUsecase {
 	return &LivestreamUsecase{
 		LivestreamRepo: livestreamRepo,
 		Log:            log,
 		config:         config,
-		streamService:  streamService,
+		streamService:    streamService,
+		viewerCountCache: viewerCountCache,
 	}
 }
 
@@ -181,4 +184,27 @@ func (u *LivestreamUsecase) DeleteLivestream(ctx context.Context, id string, use
 		return err
 	}
 	return nil
+}
+func (u *LivestreamUsecase) PingViewerCount(ctx context.Context, userRole role.Role, livestreamUUID string, userID string) (int, error) {
+	if err := u.checkUserRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to PingViewerCount")
+		return 0, err
+	}
+	err := u.viewerCountCache.AddViewerCount(livestreamUUID, userID)
+	if err != nil {
+		return 0, err
+	}
+	viewerCount, err := u.viewerCountCache.GetViewerCount(livestreamUUID)
+	if err != nil {
+		return 0, err
+	}
+	return viewerCount, nil
+}
+// remove every viewer count that is older than 5 seconds
+func (u *LivestreamUsecase) RemoveViewerCount(ctx context.Context, livestreamUUID string, seconds int) (int, error) {
+	viewerCount, err := u.viewerCountCache.RemoveViewerCount(livestreamUUID, seconds)
+	if err != nil {
+		return 0, err
+	}
+	return viewerCount, nil
 }
