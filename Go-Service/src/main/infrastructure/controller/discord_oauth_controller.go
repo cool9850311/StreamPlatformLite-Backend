@@ -4,15 +4,14 @@ import (
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/dto"
-	"Go-Service/src/main/infrastructure/message"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
-	"fmt"
 
 	"github.com/dgrijalva/jwt-go"
 
@@ -28,16 +27,22 @@ type DiscordOauthController struct {
 
 func NewDiscordOauthController(log logger.Logger, discordLoginUseCase *usecase.DiscordLoginUseCase) *DiscordOauthController {
 	return &DiscordOauthController{
-		Log: log,
+		Log:                 log,
 		discordLoginUseCase: discordLoginUseCase,
 	}
 }
 
 func (c *DiscordOauthController) Callback(ctx *gin.Context) {
+	var redirectURL string
+	if config.AppConfig.Server.HTTPS {
+		redirectURL = fmt.Sprintf("https://%s", config.AppConfig.Frontend.Domain)
+	} else {
+		redirectURL = fmt.Sprintf("http://%s:%s", config.AppConfig.Frontend.Domain, strconv.Itoa(config.AppConfig.Frontend.Port))
+	}
 	code := ctx.Query("code")
 	if code == "" {
 		c.Log.Error(ctx, "Authorization code not found")
-		ctx.JSON(http.StatusBadRequest, gin.H{"message": "Authorization code not found"})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
@@ -59,20 +64,20 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	data.Set("redirect_uri", redirectURI)
 
 	// Check if required Discord configuration fields exist
-	if config.AppConfig.Discord.ClientID == "" || 
-	config.AppConfig.Discord.ClientSecret == "" || 
-	config.AppConfig.Server.Domain == "" || 
-	config.AppConfig.Frontend.Domain == "" ||
-	config.AppConfig.Discord.AdminID == "" || 
-	config.AppConfig.Discord.GuildID == "" {
+	if config.AppConfig.Discord.ClientID == "" ||
+		config.AppConfig.Discord.ClientSecret == "" ||
+		config.AppConfig.Server.Domain == "" ||
+		config.AppConfig.Frontend.Domain == "" ||
+		config.AppConfig.Discord.AdminID == "" ||
+		config.AppConfig.Discord.GuildID == "" {
 		c.Log.Error(ctx, "Incomplete Discord configuration")
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	req, err := http.NewRequest("POST", "https://discord.com/api/oauth2/token", bytes.NewBufferString(data.Encode()))
 	if err != nil {
 		c.Log.Error(ctx, "Failed to create request: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -81,7 +86,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	resp, err := client.Do(req)
 	if err != nil {
 		c.Log.Error(ctx, "Failed to request access token: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	defer resp.Body.Close()
@@ -89,13 +94,13 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.Log.Error(ctx, "Failed to read response body: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
 	if resp.StatusCode != http.StatusOK {
 		c.Log.Error(ctx, "Failed to get access token: "+string(body))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
@@ -105,7 +110,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	}
 	if err := json.Unmarshal(body, &tokenResponse); err != nil {
 		c.Log.Error(ctx, "Failed to parse access token: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
@@ -114,7 +119,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	guildMemberReq, err := http.NewRequest("GET", "https://discord.com/api/users/@me/guilds/"+guildID+"/member", nil)
 	if err != nil {
 		c.Log.Error(ctx, "Failed to create guild member request: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	guildMemberReq.Header.Set("Authorization", "Bearer "+tokenResponse.AccessToken)
@@ -122,7 +127,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	guildMemberResp, err := client.Do(guildMemberReq)
 	if err != nil {
 		c.Log.Error(ctx, "Failed to request guild member data: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	defer guildMemberResp.Body.Close()
@@ -130,13 +135,13 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	guildMemberBody, err := io.ReadAll(guildMemberResp.Body)
 	if err != nil {
 		c.Log.Error(ctx, "Failed to read guild member response body: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
 	if guildMemberResp.StatusCode != http.StatusOK {
 		c.Log.Error(ctx, "Failed to get guild member data: "+string(guildMemberBody))
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
@@ -144,7 +149,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	var guildMemberData dto.DiscordGuildMemberDTO
 	if err := json.Unmarshal(guildMemberBody, &guildMemberData); err != nil {
 		c.Log.Error(ctx, "Failed to parse guild member data: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	discordId := guildMemberData.User.ID
@@ -152,7 +157,7 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	userRole, err := c.discordLoginUseCase.Login(ctx, discordId, userDiscordRoles)
 	if err != nil {
 		c.Log.Error(ctx, "Failed to login: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 
@@ -168,15 +173,15 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 	tokenString, err := token.SignedString([]byte(config.AppConfig.JWT.SecretKey))
 	if err != nil {
 		c.Log.Error(ctx, "Failed to sign token: "+err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 	if config.AppConfig.Server.HTTPS {
-		redirectURL := fmt.Sprintf("https://%s?token=%s", config.AppConfig.Frontend.Domain, tokenString)
+		redirectURL = fmt.Sprintf("https://%s?token=%s", config.AppConfig.Frontend.Domain, tokenString)
 		ctx.Redirect(http.StatusFound, redirectURL)
 		return
-	} 
-	redirectURL := fmt.Sprintf("http://%s:%s?token=%s", config.AppConfig.Frontend.Domain, strconv.Itoa(config.AppConfig.Frontend.Port), tokenString)
+	}
+	redirectURL = fmt.Sprintf("http://%s:%s?token=%s", config.AppConfig.Frontend.Domain, strconv.Itoa(config.AppConfig.Frontend.Port), tokenString)
 	ctx.Redirect(http.StatusFound, redirectURL)
 
 }
