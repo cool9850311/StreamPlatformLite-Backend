@@ -55,12 +55,15 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 
 	// Check if HTTPS is enabled and construct the redirect URI accordingly
 	var scheme string
+	var redirectURI string
 	if config.AppConfig.Server.HTTPS {
 		scheme = "https://"
+		redirectURI = scheme + config.AppConfig.Server.Domain+ "/oauth/discord"
 	} else {
 		scheme = "http://"
+		redirectURI = scheme + config.AppConfig.Server.Domain + ":" + strconv.Itoa(config.AppConfig.Server.Port) + "/oauth/discord"
 	}
-	redirectURI := scheme + config.AppConfig.Server.Domain + ":" + strconv.Itoa(config.AppConfig.Server.Port) + "/oauth/discord"
+	
 	data.Set("redirect_uri", redirectURI)
 
 	// Check if required Discord configuration fields exist
