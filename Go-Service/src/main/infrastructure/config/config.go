@@ -21,7 +21,7 @@ func LoadConfig() {
 	}
 	err = godotenv.Load(projectRootPath + "/.env")
 	if err != nil {
-		log.Fatalf("Error loading .env file")
+		log.Println("Error loading .env file")
 	}
 
 	// Read environment variables
