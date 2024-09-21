@@ -26,7 +26,21 @@ func (r *MongoSystemSettingRepository) GetSetting() (*system.Setting, error) {
 }
 
 func (r *MongoSystemSettingRepository) SetSetting(setting *system.Setting) error {
-	_, err := r.collection.UpdateOne(context.Background(), bson.M{}, bson.M{"$set": setting})
-	return err
+	// Check if a setting document exists
+	count, err := r.collection.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		return err
+	}
+
+	// If no document exists, insert a new one
+	if count == 0 {
+		_, err = r.collection.InsertOne(context.Background(), setting)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+	_, errr := r.collection.UpdateOne(context.Background(), bson.M{}, bson.M{"$set": setting})
+	return errr
 }
 
