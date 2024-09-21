@@ -27,6 +27,7 @@ func setupLivestream() (*mock_data.MockLivestreamRepository, *mock_data.MockLogg
 			Port   int    `mapstructure:"port"`
 			Domain string `mapstructure:"domain"`
 			HTTPS  bool   `mapstructure:"https" default:"false"`
+			EnableGinLog bool `mapstructure:"enable_gin_log" default:"true"`
 		}{
 			Domain: "localhost",
 			Port:   8080,
