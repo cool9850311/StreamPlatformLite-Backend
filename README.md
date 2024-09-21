@@ -23,7 +23,6 @@
 
 3. Start the services using Docker Compose:
     ```sh
-    cd docker
     docker-compose up -d
     ```
 
@@ -46,7 +45,6 @@
 
 1. Stop the services and clean up:
     ```sh
-    cd docker
     docker-compose down
     ```
 ## contributors
