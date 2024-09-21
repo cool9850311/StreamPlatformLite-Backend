@@ -23,7 +23,8 @@
 
 3. Start the services using Docker Compose:
     ```sh
-    docker-compose up -d
+    # docker-compose or docker compose based on your docker compose version
+    docker-compose up -d --build
     ```
 
 ### Running the Application
@@ -45,6 +46,7 @@
 
 1. Stop the services and clean up:
     ```sh
+    # docker-compose or docker compose based on your docker compose version
     docker-compose down
     ```
 ## contributors
