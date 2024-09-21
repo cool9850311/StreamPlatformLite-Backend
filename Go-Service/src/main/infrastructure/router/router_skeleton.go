@@ -17,8 +17,12 @@ import (
 )
 
 func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {
-	r := gin.Default()
-
+	var r *gin.Engine
+	r = gin.Default()
+	if !config.AppConfig.Server.EnableGinLog {
+		r = gin.New()
+		r.Use(gin.Recovery())
+	}
 	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
 	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
 	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)

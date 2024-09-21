@@ -56,6 +56,6 @@ services:
       FRONTEND_PORT: 3000
       REDIS_URI: redis:6379
       HTTPS: "false"
-
+      ENABLE_GIN_LOG: "false"
 volumes:
   mongo-data:

@@ -41,11 +41,16 @@ func LoadConfig() {
 	AppConfig.Frontend.Domain = os.Getenv("FRONTEND_DOMAIN")
 	AppConfig.Frontend.Port, err = strconv.Atoi(os.Getenv("FRONTEND_PORT"))
 	AppConfig.Redis.URI = os.Getenv("REDIS_URI")
+	
 	if err != nil {
 		log.Fatalf("Invalid FRONTEND_PORT: %s", err)
 	}
+	AppConfig.Server.EnableGinLog, err = strconv.ParseBool(os.Getenv("ENABLE_GIN_LOG"))
+	if err != nil {
+		log.Printf("Invalid ENABLE_GIN_LOG: %s", err)
+	}
 	AppConfig.Server.HTTPS, err = strconv.ParseBool(os.Getenv("HTTPS"))
 	if err != nil {
-		log.Fatalf("Invalid HTTPS: %s", err)
+		log.Printf("Invalid HTTPS: %s", err)
 	}
 }
