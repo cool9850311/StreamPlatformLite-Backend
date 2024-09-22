@@ -286,3 +286,10 @@ func (u *LivestreamUsecase) MuteUser(ctx context.Context, userRole role.Role, li
 	}
 	return nil
 }
+func (u *LivestreamUsecase) GetStreamFile(ctx context.Context, userRole role.Role) error {
+	if err := u.checkUserRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to GetStreamFile")
+		return err
+	}
+	return nil
+}
