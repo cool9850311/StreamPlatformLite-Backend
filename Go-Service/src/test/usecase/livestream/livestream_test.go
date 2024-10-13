@@ -268,8 +268,8 @@ func TestLivestreamUsecase_GetChat_AdminUser(t *testing.T) {
 	ctx := context.Background()
 
 	testChats := []chat.Chat{
-		{UserID: "user1", Message: "Hello"},
-		{UserID: "user2", Message: "Hi"},
+		{UserID: "user1", Message: "Hello", Avatar: "avatar1", Username: "username1"},
+		{UserID: "user2", Message: "Hi", Avatar: "avatar2", Username: "username2"},
 	}
 
 	mockChatCache.On("GetChat", "livestream123", "0", 10).Return(testChats, nil)
@@ -295,7 +295,7 @@ func TestLivestreamUsecase_AddChat_AdminUser(t *testing.T) {
 	mockRepo, _, _, mockChatCache, useCase := setupLivestream()
 	ctx := context.Background()
 
-	testChat := chat.Chat{UserID: "user123", Message: "Hello"}
+	testChat := chat.Chat{UserID: "user123", Message: "Hello", Avatar: "avatar123", Username: "username123"}
 
 	mockRepo.On("GetByID", "livestream123").Return(&livestream.Livestream{}, nil)
 	mockChatCache.On("AddChat", "livestream123", testChat).Return(nil)

@@ -50,6 +50,7 @@ func (r *RedisChat) GetChat(livestreamUUID string, index string, count int) ([]c
 		chats = append(chats, chat.Chat{
 			ID:       stream.ID,
 			UserID:   stream.Values["user_id"].(string),
+			Avatar:   stream.Values["avatar"].(string),
 			Username: stream.Values["username"].(string),
 			Message:  stream.Values["message"].(string),
 		})
@@ -66,9 +67,10 @@ func (r *RedisChat) AddChat(livestreamUUID string, chat chat.Chat) error {
 	_, err := r.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: key,
 		Values: map[string]interface{}{
-			"user_id":  chat.UserID,
-			"username": chat.Username,
-			"message":  chat.Message,
+			"user_id":   chat.UserID,
+			"avatar":    chat.Avatar,
+			"username":  chat.Username,
+			"message":   chat.Message,
 		},
 	}).Result()
 

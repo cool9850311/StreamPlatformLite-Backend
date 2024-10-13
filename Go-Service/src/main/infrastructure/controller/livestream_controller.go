@@ -131,6 +131,7 @@ func (c *LivestreamController) AddChat(ctx *gin.Context) {
 	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
 	chat := chat.Chat{
 		UserID:   claims.UserID,
+		Avatar:   claims.Avatar,
 		Username: claims.UserName,
 		Message:  chatRequest.Message,
 	}
