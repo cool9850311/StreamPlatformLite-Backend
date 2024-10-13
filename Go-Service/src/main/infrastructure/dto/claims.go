@@ -8,6 +8,7 @@ import (
 
 type Claims struct {
 	UserID           string
+	Avatar           string
 	UserName         string
 	Role             role.Role
 	IdentityProvider string
