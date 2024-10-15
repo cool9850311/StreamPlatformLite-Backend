@@ -2,7 +2,7 @@ package controller
 import (
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/interface/logger"
-	"Go-Service/src/main/infrastructure/dto"
+	"Go-Service/src/main/application/dto"
 	"net/http"
 	"github.com/gin-gonic/gin"
 	"Go-Service/src/main/infrastructure/message"
