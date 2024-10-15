@@ -31,11 +31,7 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	discordOAuthOuterApi := discord.NewDiscordOAuthImpl()
 	jwtGenerator := util.NewJWTLibrary()
 	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator)
-	skeletonRepo := repository.NewMongoSkeletonRepository(db)
-	userRepo := repository.NewUserRepository(db)
-	skeletonUseCase := &usecase.SkeletonUseCase{SkeletonRepo: skeletonRepo, Log: log}
-	skeletonController := &controller.SkeletonController{SkeletonUseCase: skeletonUseCase, Log: log}
-	authController := &controller.AuthController{Log: log, UserRepository: userRepo}
+	
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
@@ -65,10 +61,7 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	})
 
 	r.Use(middleware.TraceIDMiddleware())
-	r.POST("/login", authController.Login)
 	r.GET("/oauth/discord", discordOauthController.Callback)
-	r.GET("/skeletons/:id", middleware.JWTAuthMiddleware(log), skeletonController.GetSkeleton)
-	r.POST("/skeletons", middleware.JWTAuthMiddleware(log), skeletonController.CreateSkeleton)
 	r.GET("/livestream/:uuid/:filename", middleware.JWTAuthMiddleware(log), livestreamController.GetFile)
 	r.GET("/system-settings", middleware.JWTAuthMiddleware(log), systemSettingController.GetSetting)
 	r.PATCH("/system-settings", middleware.JWTAuthMiddleware(log), systemSettingController.SetSetting)
