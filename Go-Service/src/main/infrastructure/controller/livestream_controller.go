@@ -7,7 +7,7 @@ import (
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/interface/logger"
-	"Go-Service/src/main/infrastructure/dto"
+	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/infrastructure/message"
 	"net/http"
 	"os"

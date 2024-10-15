@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/mongo"
 	"github.com/redis/go-redis/v9"
+	"Go-Service/src/main/infrastructure/outer_api/discord"
+	"Go-Service/src/main/infrastructure/util"
 )
 
 func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {
@@ -26,7 +28,9 @@ func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.I
 	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
 	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
 	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)
-	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig)
+	discordOAuthOuterApi := discord.NewDiscordOAuthImpl()
+	jwtGenerator := util.NewJWTLibrary()
+	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator)
 	skeletonRepo := repository.NewMongoSkeletonRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	skeletonUseCase := &usecase.SkeletonUseCase{SkeletonRepo: skeletonRepo, Log: log}
