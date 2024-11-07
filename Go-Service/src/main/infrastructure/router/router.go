@@ -90,6 +90,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 		livestream.POST("", middleware.JWTAuthMiddleware(log), livestreamController.CreateLivestream)
 		livestream.GET("/owner/:user_id", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByOwnerId)
 		livestream.GET("/one", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamOne)
+		livestream.GET("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByID)
 		livestream.PATCH("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.UpdateLivestream)
 		livestream.DELETE("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.DeleteLivestream)
 		livestream.GET("/ping-viewer-count/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.PingViewerCount)

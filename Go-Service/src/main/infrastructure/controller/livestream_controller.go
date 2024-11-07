@@ -29,6 +29,16 @@ func NewLivestreamController(log logger.Logger, livestreamUseCase *usecase.Lives
 
 	return controller
 }
+func (c *LivestreamController) GetLivestreamByID(ctx *gin.Context) {
+	id := ctx.Param("uuid")
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	livestream, err := c.livestreamUseCase.GetLivestreamByID(ctx, id, claims.Role)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+	ctx.JSON(http.StatusOK, livestream)
+}
 
 func (c *LivestreamController) GetLivestreamByOwnerId(ctx *gin.Context) {
 	id := ctx.Param("user_id")
