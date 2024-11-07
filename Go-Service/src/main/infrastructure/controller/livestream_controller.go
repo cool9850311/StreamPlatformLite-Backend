@@ -1,19 +1,20 @@
 package controller
 
 import (
+	"Go-Service/src/main/application/dto"
 	livestreamDTO "Go-Service/src/main/application/dto/livestream"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/interface/logger"
-	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/infrastructure/message"
+	"Go-Service/src/main/infrastructure/util"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"Go-Service/src/main/infrastructure/util"
-	"fmt"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -186,7 +187,7 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 	// uuid := ctx.Param("uuid")
 	filename := ctx.Param("filename")
 	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
-	err := c.livestreamUseCase.GetStreamFile(ctx, claims.Role)
+	err := c.livestreamUseCase.CheckAccessStreamFile(ctx, claims.Role)
 	if err != nil {
 		if err == errors.ErrUnauthorized {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})

@@ -6,6 +6,7 @@ import (
 	"Go-Service/src/main/application/interface/cache"
 	"Go-Service/src/main/application/interface/repository"
 	"Go-Service/src/main/application/interface/stream"
+	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/entity/role"
@@ -13,7 +14,7 @@ import (
 	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"strconv"
-	"Go-Service/src/main/domain/entity/chat"
+
 	"github.com/google/uuid"
 )
 
@@ -28,9 +29,9 @@ type LivestreamUsecase struct {
 
 func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat) *LivestreamUsecase {
 	return &LivestreamUsecase{
-		LivestreamRepo: livestreamRepo,
-		Log:            log,
-		config:         config,
+		LivestreamRepo:   livestreamRepo,
+		Log:              log,
+		config:           config,
 		streamService:    streamService,
 		viewerCountCache: viewerCountCache,
 		chatCache:        chatCache,
@@ -208,6 +209,7 @@ func (u *LivestreamUsecase) PingViewerCount(ctx context.Context, userRole role.R
 	}
 	return viewerCount, nil
 }
+
 // remove every viewer count that is older than 5 seconds cron job
 func (u *LivestreamUsecase) RemoveViewerCount(ctx context.Context, livestreamUUID string, seconds int) (int, error) {
 	viewerCount, err := u.viewerCountCache.RemoveViewerCount(livestreamUUID, seconds)
@@ -286,7 +288,7 @@ func (u *LivestreamUsecase) MuteUser(ctx context.Context, userRole role.Role, li
 	}
 	return nil
 }
-func (u *LivestreamUsecase) GetStreamFile(ctx context.Context, userRole role.Role) error {
+func (u *LivestreamUsecase) CheckAccessStreamFile(ctx context.Context, userRole role.Role) error {
 	if err := u.checkUserRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to GetStreamFile")
 		return err
