@@ -187,7 +187,7 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 	filename := ctx.Param("filename")
 	rootPath, err := util.GetProjectRootPath()
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "Internal server error"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
 
@@ -198,7 +198,7 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
 	}
-
+	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	ctx.Data(http.StatusOK, getContentType(filename), fileData)
 }
 
