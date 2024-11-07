@@ -69,7 +69,8 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
 	chatCache := cache.NewRedisChat(redisClient)
-	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache)
+	fileCache := cache.NewFileCache()
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
 
 	login := r.Group("/")

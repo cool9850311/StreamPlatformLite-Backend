@@ -17,12 +17,23 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func setupLivestream() (*mock_data.MockLivestreamRepository, *mock_data.MockLogger, *mock_data.MockViewerCountCache, *mock_data.MockChatCache, usecase.LivestreamUsecase) {
+// Define a struct to hold all the mock objects
+type LivestreamTestSetup struct {
+	MockRepo            *mock_data.MockLivestreamRepository
+	MockLogger          *mock_data.MockLogger
+	MockViewerCountCache *mock_data.MockViewerCountCache
+	MockChatCache       *mock_data.MockChatCache
+	MockFileCache       *mock_data.MockFileCache
+	UseCase             usecase.LivestreamUsecase
+}
+
+func setupLivestream() *LivestreamTestSetup {
 	mockRepo := new(mock_data.MockLivestreamRepository)
 	mockLogger := new(mock_data.MockLogger)
 	mockStreamService := new(mock_data.MockLivestreamService)
 	mockViewerCountCache := new(mock_data.MockViewerCountCache)
 	mockChatCache := new(mock_data.MockChatCache)
+	mockFileCache := new(mock_data.MockFileCache)
 	cfg := config.Config{
 		Server: struct {
 			Port         int    `mapstructure:"port"`
@@ -35,12 +46,20 @@ func setupLivestream() (*mock_data.MockLivestreamRepository, *mock_data.MockLogg
 			HTTPS:  false,
 		},
 	}
-	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache, mockChatCache)
-	return mockRepo, mockLogger, mockViewerCountCache, mockChatCache, *useCase // Dereference the pointer
+	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache, mockChatCache, mockFileCache)
+
+	return &LivestreamTestSetup{
+		MockRepo:            mockRepo,
+		MockLogger:          mockLogger,
+		MockViewerCountCache: mockViewerCountCache,
+		MockChatCache:       mockChatCache,
+		MockFileCache:       mockFileCache,
+		UseCase:             *useCase, // Return the pointer directly
+	}
 }
 
 func TestLivestreamUsecase_GetLivestreamByID_AdminUser(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
@@ -48,27 +67,27 @@ func TestLivestreamUsecase_GetLivestreamByID_AdminUser(t *testing.T) {
 		// other fields...
 	}
 
-	mockRepo.On("GetByID", "livestream123").Return(testLivestream, nil)
+	setup.MockRepo.On("GetByID", "livestream123").Return(testLivestream, nil)
 
-	result, err := useCase.GetLivestreamByID(ctx, "livestream123", role.Admin)
+	result, err := setup.UseCase.GetLivestreamByID(ctx, "livestream123", role.Admin)
 
 	assert.Equal(t, testLivestream, result)
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_GetLivestreamByID_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	result, err := useCase.GetLivestreamByID(ctx, "livestream123", role.User)
+	result, err := setup.UseCase.GetLivestreamByID(ctx, "livestream123", role.User)
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_GetLivestreamByOwnerID_AdminUser(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
@@ -76,27 +95,27 @@ func TestLivestreamUsecase_GetLivestreamByOwnerID_AdminUser(t *testing.T) {
 		// other fields...
 	}
 
-	mockRepo.On("GetByOwnerID", "user123").Return(testLivestream, nil)
+	setup.MockRepo.On("GetByOwnerID", "user123").Return(testLivestream, nil)
 
-	result, err := useCase.GetLivestreamByOwnerID(ctx, "user123", role.Admin)
+	result, err := setup.UseCase.GetLivestreamByOwnerID(ctx, "user123", role.Admin)
 
 	assert.Equal(t, testLivestream.UUID, result.UUID)
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_GetLivestreamByOwnerID_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	result, err := useCase.GetLivestreamByOwnerID(ctx, "user123", role.User)
+	result, err := setup.UseCase.GetLivestreamByOwnerID(ctx, "user123", role.User)
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_CreateLivestream_AdminUser(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestreamDto.LivestreamCreateDTO{
@@ -105,17 +124,17 @@ func TestLivestreamUsecase_CreateLivestream_AdminUser(t *testing.T) {
 		Information: "Test Livestream",
 		Visibility:  "public",
 	}
-	mockRepo.On("GetOne").Return(nil, errors.ErrNotFound) // it is actually document not found
-	mockRepo.On("Create", mock.AnythingOfType("*livestream.Livestream")).Return(nil)
+	setup.MockRepo.On("GetOne").Return(nil, errors.ErrNotFound) // it is actually document not found
+	setup.MockRepo.On("Create", mock.AnythingOfType("*livestream.Livestream")).Return(nil)
 
-	_, err := useCase.CreateLivestream(ctx, testLivestream, "user123", role.Admin)
+	_, err := setup.UseCase.CreateLivestream(ctx, testLivestream, "user123", role.Admin)
 
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_CreateLivestream_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 	testLivestream := &livestreamDto.LivestreamCreateDTO{
 		Name:        "Test Livestream",
@@ -124,13 +143,13 @@ func TestLivestreamUsecase_CreateLivestream_UnauthorizedUser(t *testing.T) {
 		Visibility:  "public",
 	}
 
-	_, err := useCase.CreateLivestream(ctx, testLivestream, "user123", role.User)
+	_, err := setup.UseCase.CreateLivestream(ctx, testLivestream, "user123", role.User)
 
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_CreateLivestream_AlreadyExists(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestreamDto.LivestreamCreateDTO{
@@ -141,17 +160,17 @@ func TestLivestreamUsecase_CreateLivestream_AlreadyExists(t *testing.T) {
 	}
 
 	// Mock GetOne to return a livestream, indicating it already exists
-	mockRepo.On("GetOne").Return(&livestream.Livestream{}, nil)
+	setup.MockRepo.On("GetOne").Return(&livestream.Livestream{}, nil)
 
-	_, err := useCase.CreateLivestream(ctx, testLivestream, "user123", role.Admin)
+	_, err := setup.UseCase.CreateLivestream(ctx, testLivestream, "user123", role.Admin)
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrExists, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_UpdateLivestream_AdminUser(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
@@ -160,16 +179,16 @@ func TestLivestreamUsecase_UpdateLivestream_AdminUser(t *testing.T) {
 		// other fields...
 	}
 
-	mockRepo.On("Update", testLivestream).Return(nil)
+	setup.MockRepo.On("Update", testLivestream).Return(nil)
 
-	err := useCase.UpdateLivestream(ctx, testLivestream, role.Admin)
+	err := setup.UseCase.UpdateLivestream(ctx, testLivestream, role.Admin)
 
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_UpdateLivestream_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
@@ -177,34 +196,34 @@ func TestLivestreamUsecase_UpdateLivestream_UnauthorizedUser(t *testing.T) {
 		// other fields...
 	}
 
-	err := useCase.UpdateLivestream(ctx, testLivestream, role.User)
+	err := setup.UseCase.UpdateLivestream(ctx, testLivestream, role.User)
 
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_DeleteLivestream_AdminUser(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	mockRepo.On("Delete", "livestream123").Return(nil)
+	setup.MockRepo.On("Delete", "livestream123").Return(nil)
 
-	err := useCase.DeleteLivestream(ctx, "livestream123", role.Admin)
+	err := setup.UseCase.DeleteLivestream(ctx, "livestream123", role.Admin)
 
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_DeleteLivestream_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	err := useCase.DeleteLivestream(ctx, "livestream123", role.User)
+	err := setup.UseCase.DeleteLivestream(ctx, "livestream123", role.User)
 
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_GetOne_UserRole(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
@@ -215,9 +234,9 @@ func TestLivestreamUsecase_GetOne_UserRole(t *testing.T) {
 		OutputPathUUID: "output123",
 	}
 
-	mockRepo.On("GetOne").Return(testLivestream, nil)
+	setup.MockRepo.On("GetOne").Return(testLivestream, nil)
 
-	result, err := useCase.GetOne(ctx, role.User)
+	result, err := setup.UseCase.GetOne(ctx, role.User)
 
 	expectedURL := "http://localhost:8080/livestream/output123/playlist.m3u8"
 	assert.NoError(t, err)
@@ -226,45 +245,45 @@ func TestLivestreamUsecase_GetOne_UserRole(t *testing.T) {
 	assert.Equal(t, testLivestream.Title, result.Title)
 	assert.Equal(t, testLivestream.Information, result.Information)
 	assert.Equal(t, expectedURL, result.StreamURL)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_GetOne_UnauthorizedRole(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	result, err := useCase.GetOne(ctx, role.Guest)
+	result, err := setup.UseCase.GetOne(ctx, role.Guest)
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_PingViewerCount_AdminUser(t *testing.T) {
-	_, _, mockViewerCountCache, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	mockViewerCountCache.On("AddViewerCount", "livestream123", "user123").Return(nil)
-	mockViewerCountCache.On("GetViewerCount", "livestream123").Return(10, nil)
+	setup.MockViewerCountCache.On("AddViewerCount", "livestream123", "user123").Return(nil)
+	setup.MockViewerCountCache.On("GetViewerCount", "livestream123").Return(10, nil)
 
-	viewerCount, err := useCase.PingViewerCount(ctx, role.Admin, "livestream123", "user123")
+	viewerCount, err := setup.UseCase.PingViewerCount(ctx, role.Admin, "livestream123", "user123")
 
 	assert.NoError(t, err)
 	assert.Equal(t, 10, viewerCount)
-	mockViewerCountCache.AssertExpectations(t)
+	setup.MockViewerCountCache.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_PingViewerCount_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	viewerCount, err := useCase.PingViewerCount(ctx, role.Guest, "livestream123", "user123")
+	viewerCount, err := setup.UseCase.PingViewerCount(ctx, role.Guest, "livestream123", "user123")
 
 	assert.Error(t, err)
 	assert.Equal(t, 0, viewerCount)
 }
 
 func TestLivestreamUsecase_GetChat_AdminUser(t *testing.T) {
-	_, _, _, mockChatCache, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testChats := []chat.Chat{
@@ -272,89 +291,89 @@ func TestLivestreamUsecase_GetChat_AdminUser(t *testing.T) {
 		{UserID: "user2", Message: "Hi", Avatar: "avatar2", Username: "username2"},
 	}
 
-	mockChatCache.On("GetChat", "livestream123", "0", 10).Return(testChats, nil)
+	setup.MockChatCache.On("GetChat", "livestream123", "0", 10).Return(testChats, nil)
 
-	chats, err := useCase.GetChat(ctx, role.Admin, "livestream123", "0")
+	chats, err := setup.UseCase.GetChat(ctx, role.Admin, "livestream123", "0")
 
 	assert.NoError(t, err)
 	assert.Equal(t, testChats, chats)
-	mockChatCache.AssertExpectations(t)
+	setup.MockChatCache.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_GetChat_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	chats, err := useCase.GetChat(ctx, role.Guest, "livestream123", "0")
+	chats, err := setup.UseCase.GetChat(ctx, role.Guest, "livestream123", "0")
 
 	assert.Error(t, err)
 	assert.Nil(t, chats)
 }
 
 func TestLivestreamUsecase_AddChat_AdminUser(t *testing.T) {
-	mockRepo, _, _, mockChatCache, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testChat := chat.Chat{UserID: "user123", Message: "Hello", Avatar: "avatar123", Username: "username123"}
 
-	mockRepo.On("GetByID", "livestream123").Return(&livestream.Livestream{}, nil)
-	mockChatCache.On("AddChat", "livestream123", testChat).Return(nil)
+	setup.MockRepo.On("GetByID", "livestream123").Return(&livestream.Livestream{}, nil)
+	setup.MockChatCache.On("AddChat", "livestream123", testChat).Return(nil)
 
-	err := useCase.AddChat(ctx, role.Admin, "livestream123", testChat)
+	err := setup.UseCase.AddChat(ctx, role.Admin, "livestream123", testChat)
 
 	assert.NoError(t, err)
-	mockChatCache.AssertExpectations(t)
+	setup.MockChatCache.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_AddChat_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
 	testChat := chat.Chat{UserID: "user123", Message: "Hello"}
 
-	err := useCase.AddChat(ctx, role.Guest, "livestream123", testChat)
+	err := setup.UseCase.AddChat(ctx, role.Guest, "livestream123", testChat)
 
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_DeleteChat_EditorUser(t *testing.T) {
-	_, _, _, mockChatCache, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	mockChatCache.On("DeleteChat", "livestream123", "chat123").Return(nil)
+	setup.MockChatCache.On("DeleteChat", "livestream123", "chat123").Return(nil)
 
-	err := useCase.DeleteChat(ctx, role.Editor, "livestream123", "chat123")
+	err := setup.UseCase.DeleteChat(ctx, role.Editor, "livestream123", "chat123")
 
 	assert.NoError(t, err)
-	mockChatCache.AssertExpectations(t)
+	setup.MockChatCache.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_DeleteChat_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	err := useCase.DeleteChat(ctx, role.User, "livestream123", "chat123")
+	err := setup.UseCase.DeleteChat(ctx, role.User, "livestream123", "chat123")
 
 	assert.Error(t, err)
 }
 
 func TestLivestreamUsecase_MuteUser_EditorUser(t *testing.T) {
-	mockRepo, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	mockRepo.On("MuteUser", "livestream123", "user123").Return(nil)
+	setup.MockRepo.On("MuteUser", "livestream123", "user123").Return(nil)
 
-	err := useCase.MuteUser(ctx, role.Editor, "livestream123", "user123")
+	err := setup.UseCase.MuteUser(ctx, role.Editor, "livestream123", "user123")
 
 	assert.NoError(t, err)
-	mockRepo.AssertExpectations(t)
+	setup.MockRepo.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_MuteUser_UnauthorizedUser(t *testing.T) {
-	_, _, _, _, useCase := setupLivestream()
+	setup := setupLivestream()
 	ctx := context.Background()
 
-	err := useCase.MuteUser(ctx, role.User, "livestream123", "user123")
+	err := setup.UseCase.MuteUser(ctx, role.User, "livestream123", "user123")
 
 	assert.Error(t, err)
 }

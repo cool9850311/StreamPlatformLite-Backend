@@ -10,9 +10,7 @@ import (
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/message"
 	"Go-Service/src/main/infrastructure/util"
-	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -24,10 +22,12 @@ type LivestreamController struct {
 }
 
 func NewLivestreamController(log logger.Logger, livestreamUseCase *usecase.LivestreamUsecase) *LivestreamController {
-	return &LivestreamController{
+	controller := &LivestreamController{
 		Log:               log,
 		livestreamUseCase: livestreamUseCase,
 	}
+
+	return controller
 }
 
 func (c *LivestreamController) GetLivestreamByOwnerId(ctx *gin.Context) {
@@ -184,44 +184,29 @@ func (c *LivestreamController) MuteUser(ctx *gin.Context) {
 }
 
 func (c *LivestreamController) GetFile(ctx *gin.Context) {
-	// uuid := ctx.Param("uuid")
 	filename := ctx.Param("filename")
-	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
-	err := c.livestreamUseCase.CheckAccessStreamFile(ctx, claims.Role)
-	if err != nil {
-		if err == errors.ErrUnauthorized {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
-		return
-	}
-	ctx.Header("Access-Control-Allow-Origin", "*")
-	ctx.Header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-	ctx.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	ctx.Header("Access-Control-Allow-Credentials", "true")
-	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
-
-	// Handle preflight request
 	rootPath, err := util.GetProjectRootPath()
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": "Internal server error"})
 		return
 	}
-	// Set Content-Length and Content-Type headers
+
 	filePath := filepath.Clean(rootPath + "/hls/" + ctx.Param("uuid") + "/" + filename)
-	fileInfo, err := os.Stat(filePath)
+
+	fileData, err := c.livestreamUseCase.GetFile(filePath)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
 	}
 
-	ctx.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-	if filepath.Ext(filename) == ".m3u8" {
-		ctx.Header("Content-Type", "application/vnd.apple.mpegurl") // for .m3u8
-	} else if filepath.Ext(filename) == ".ts" {
-		ctx.Header("Content-Type", "video/mp2t") // for .ts
-	}
+	ctx.Data(http.StatusOK, getContentType(filename), fileData)
+}
 
-	ctx.File(filePath)
+func getContentType(filename string) string {
+	if filepath.Ext(filename) == ".m3u8" {
+		return "application/vnd.apple.mpegurl"
+	} else if filepath.Ext(filename) == ".ts" {
+		return "video/mp2t"
+	}
+	return "application/octet-stream"
 }

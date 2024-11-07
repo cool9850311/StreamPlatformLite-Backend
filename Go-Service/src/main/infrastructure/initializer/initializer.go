@@ -110,8 +110,9 @@ func InitCronJob(log domainLogger.Logger, db *mongo.Database) {
 	cronJob = cron.New()
 	viewerCountCache := cache.NewRedisViewerCount(RedisClient)
 	chatCache := cache.NewRedisChat(RedisClient)
+	fileCache := cache.NewFileCache()
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
-	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, LiveStreamService, viewerCountCache, chatCache)
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, LiveStreamService, viewerCountCache, chatCache, fileCache)
 	cronJob.AddFunc("@every 10s", func() {
 		log.Info(context.Background(), "Running viewer count cleanup")
 		uuid, err := livestreamRepo.GetOne()
