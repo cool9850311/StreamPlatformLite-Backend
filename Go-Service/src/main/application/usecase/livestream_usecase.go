@@ -14,8 +14,12 @@ import (
 	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"strconv"
-
+	"Go-Service/src/main/domain/interface/file_cache"
 	"github.com/google/uuid"
+	"sync"
+	"path/filepath"
+	"time"
+	"strings"
 )
 
 type LivestreamUsecase struct {
@@ -25,17 +29,22 @@ type LivestreamUsecase struct {
 	streamService    stream.ILivestreamService
 	viewerCountCache cache.ViewerCount
 	chatCache        cache.Chat
+	fileCache       file_cache.IFileCache
+	m3u8Lock        sync.Mutex
 }
 
-func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat) *LivestreamUsecase {
-	return &LivestreamUsecase{
+func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat, fileCache file_cache.IFileCache) *LivestreamUsecase {
+	u := &LivestreamUsecase{
 		LivestreamRepo:   livestreamRepo,
 		Log:              log,
 		config:           config,
 		streamService:    streamService,
 		viewerCountCache: viewerCountCache,
 		chatCache:        chatCache,
+		fileCache:        fileCache,
 	}
+	go u.startCacheCleanup()
+	return u
 }
 
 func (u *LivestreamUsecase) checkAdminRole(userRole role.Role) error {
@@ -288,10 +297,70 @@ func (u *LivestreamUsecase) MuteUser(ctx context.Context, userRole role.Role, li
 	}
 	return nil
 }
-func (u *LivestreamUsecase) CheckAccessStreamFile(ctx context.Context, userRole role.Role) error {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to GetStreamFile")
-		return err
+func (u *LivestreamUsecase) GetFile(filePath string) ([]byte, error) {
+	ext := filepath.Ext(filePath)
+
+	if ext == ".m3u8" {
+		u.m3u8Lock.Lock()
+		defer u.m3u8Lock.Unlock()
 	}
-	return nil
+
+	if data, ok := u.fileCache.LoadCache(filePath); ok {
+		return data, nil
+	}
+
+	fileData, err := u.fileCache.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	u.fileCache.StoreCache(filePath, fileData)
+
+	if ext == ".m3u8" {
+		go u.updateCachePeriodically(filePath)
+	}
+
+	return fileData, nil
+}
+func (u *LivestreamUsecase) updateCachePeriodically(filePath string) {
+	for {
+		time.Sleep(1 * time.Second)
+		u.m3u8Lock.Lock()
+		fileData, err := u.fileCache.ReadFile(filePath)
+		if err == nil {
+			u.fileCache.StoreCache(filePath, fileData)
+		}
+		u.m3u8Lock.Unlock()
+	}
+}
+
+func (u *LivestreamUsecase) startCacheCleanup() {
+	for {
+		time.Sleep(10 * time.Second) // Run cleanup every 10 seconds
+		now := time.Now().UnixMilli()
+
+		u.fileCache.Range(func(key, value interface{}) bool {
+			filePath := key.(string)
+			filename := filepath.Base(filePath)
+
+			// Extract timestamp from filename
+			parts := strings.Split(filename, "-")
+			if len(parts) < 3 {
+				return true // Continue to next item
+			}
+
+			timestampStr := parts[1]
+			timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
+			if err != nil {
+				return true // Continue to next item
+			}
+
+			// Check if the file is older than 30 seconds
+			if now-timestamp > 30000 {
+				u.fileCache.DeleteFile(filePath)
+			}
+
+			return true // Continue to next item
+		})
+	}
 }
