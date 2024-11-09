@@ -64,12 +64,12 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 	}
 	accessToken, err := u.discordOAuth.GetAccessToken(ctx, u.config.Discord.ClientID, u.config.Discord.ClientSecret, code, redirectURI)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting access token")
+		u.Log.Error(ctx, "Error getting access token: " + err.Error())
 		return clientRedirectURL, errors.ErrInternal
 	}
 	discordGuildMemberData, err := u.discordOAuth.GetGuildMemberData(ctx, accessToken, u.config.Discord.GuildID)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting user discord id")
+		u.Log.Error(ctx, "Error getting user discord id: " + err.Error())
 		return clientRedirectURL, errors.ErrInternal
 	}
 	discordId := discordGuildMemberData.User.ID
@@ -86,7 +86,7 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 
 	setting, err := u.systemSettingRepo.GetSetting()
 	if err != nil {
-		u.Log.Error(ctx, "Error getting system setting")
+		u.Log.Error(ctx, "Error getting system setting: " + err.Error())
 		return clientRedirectURL, errors.ErrInternal
 	}
 
@@ -118,7 +118,7 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 func (u *DiscordLoginUseCase) generateToken(ctx context.Context, discordId string, discordGuildMemberData *dto.DiscordGuildMemberDTO, userRole role.Role) (string, error) {
 	jwt, err := u.jwtGenerator.GenerateToken(ctx, discordId, discordGuildMemberData, userRole, u.config.JWT.SecretKey)
 	if err != nil {
-		u.Log.Error(ctx, "Error generating JWT")
+		u.Log.Error(ctx, "Error generating JWT: " + err.Error())
 		return "", errors.ErrInternal
 	}
 	return jwt, nil

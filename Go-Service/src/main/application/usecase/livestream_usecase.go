@@ -74,7 +74,7 @@ func (u *LivestreamUsecase) GetLivestreamByID(ctx context.Context, id string, us
 	}
 	livestream, err := u.LivestreamRepo.GetByID(id)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream by ID")
+		u.Log.Error(ctx, "Error getting livestream by ID: " + err.Error())
 		return nil, err
 	}
 	livestreamResponse := livestreamDTO.LivestreamGetByOwnerIDResponseDTO{
@@ -97,7 +97,7 @@ func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID 
 	}
 	livestream, err := u.LivestreamRepo.GetByOwnerID(ownerID)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream by owner ID")
+		u.Log.Error(ctx, "Error getting livestream by owner ID: " + err.Error())
 		return nil, err
 	}
 	livestreamResponse := livestreamDTO.LivestreamGetByOwnerIDResponseDTO{
@@ -119,7 +119,7 @@ func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*li
 	}
 	livestream, err := u.LivestreamRepo.GetOne()
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream")
+		u.Log.Error(ctx, "Error getting livestream: " + err.Error())
 		return nil, err
 	}
 	prefix := "http://"
@@ -170,12 +170,12 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 	}
 	err = u.LivestreamRepo.Create(&livestreamEntity)
 	if err != nil {
-		u.Log.Error(ctx, "Error creating livestream")
+		u.Log.Error(ctx, "Error creating livestream: " + err.Error())
 		return nil, err
 	}
 	err = u.streamService.OpenStream(livestreamData.Name, streamUUID, apiKey, outputPathUUID)
 	if err != nil {
-		u.Log.Error(ctx, "Error opening stream Service")
+		u.Log.Error(ctx, "Error opening stream Service: " + err.Error())
 		return nil, err
 	}
 	return &livestreamDTO.LivestreamCreateResponseDTO{
@@ -190,7 +190,7 @@ func (u *LivestreamUsecase) UpdateLivestream(ctx context.Context, livestream *li
 	}
 	err := u.LivestreamRepo.Update(livestream)
 	if err != nil {
-		u.Log.Error(ctx, "Error updating livestream")
+		u.Log.Error(ctx, "Error updating livestream: " + err.Error())
 		return err
 	}
 	return nil
@@ -203,12 +203,12 @@ func (u *LivestreamUsecase) DeleteLivestream(ctx context.Context, id string, use
 	}
 	err := u.LivestreamRepo.Delete(id)
 	if err != nil {
-		u.Log.Error(ctx, "Error deleting livestream")
+		u.Log.Error(ctx, "Error deleting livestream: " + err.Error())
 		return err
 	}
 	err = u.streamService.CloseStream(id)
 	if err != nil {
-		u.Log.Error(ctx, "Error closing stream")
+		u.Log.Error(ctx, "Error closing stream: " + err.Error())
 		return err
 	}
 	return nil
@@ -307,7 +307,7 @@ func (u *LivestreamUsecase) MuteUser(ctx context.Context, userRole role.Role, li
 	}
 	return nil
 }
-func (u *LivestreamUsecase) GetFile(filePath string) ([]byte, error) {
+func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string) ([]byte, error) {
 	ext := filepath.Ext(filePath)
 
 	if ext == ".m3u8" {
@@ -321,6 +321,7 @@ func (u *LivestreamUsecase) GetFile(filePath string) ([]byte, error) {
 
 	fileData, err := u.fileCache.ReadFile(filePath)
 	if err != nil {
+		u.Log.Error(ctx, "Error reading file: " + err.Error())
 		return nil, err
 	}
 
