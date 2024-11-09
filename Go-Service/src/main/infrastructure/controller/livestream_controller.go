@@ -203,7 +203,7 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 
 	filePath := filepath.Clean(rootPath + "/hls/" + ctx.Param("uuid") + "/" + filename)
 
-	fileData, err := c.livestreamUseCase.GetFile(filePath)
+	fileData, err := c.livestreamUseCase.GetFile(ctx, filePath)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
