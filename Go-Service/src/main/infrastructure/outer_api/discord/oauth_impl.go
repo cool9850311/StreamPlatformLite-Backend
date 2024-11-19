@@ -44,7 +44,7 @@ func (d *DiscordOAuthImpl) GetAccessToken(ctx context.Context, clientID string, 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New("failed to get access token: " + string(body))
+		return "", errors.New("failed to get access token: " + string(body) + " | request data: " + data.Encode())
 	}
 
 	var tokenResponse struct {
