@@ -10,5 +10,7 @@ var (
 	ErrConnectionClosed = errors.New("connection closed")
 	ErrExists           = errors.New("already exists")
 	ErrMuteUser         = errors.New("user already muted")
+	ErrDuplicate        = errors.New("duplicate")
+	ErrPassword         = errors.New("incorrect password")
 	// Add other error types as needed
 )

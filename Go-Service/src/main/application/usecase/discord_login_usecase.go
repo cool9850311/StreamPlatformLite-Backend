@@ -1,17 +1,17 @@
 package usecase
 
 import (
+	"Go-Service/src/main/application/dto"
+	"Go-Service/src/main/application/dto/config"
+	"Go-Service/src/main/application/interface/jwt"
+	"Go-Service/src/main/application/interface/outer_api/discord"
 	"Go-Service/src/main/application/interface/repository"
+	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/main/domain/interface/logger"
-	"Go-Service/src/main/application/dto/config"
 	"context"
 	"fmt"
 	"strconv"
-	"Go-Service/src/main/domain/entity/errors"
-	"Go-Service/src/main/application/interface/outer_api/discord"
-	"Go-Service/src/main/application/interface/jwt"
-	"Go-Service/src/main/application/dto"
 )
 
 type DiscordLoginUseCase struct {
@@ -33,7 +33,7 @@ func NewDiscordLoginUseCase(systemSettingRepo repository.SystemSettingRepository
 }
 
 func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, error) {
-	
+
 	var clientRedirectURL string
 	if u.config.Server.HTTPS {
 		clientRedirectURL = fmt.Sprintf("https://%s", u.config.Frontend.Domain)
@@ -41,11 +41,11 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 		clientRedirectURL = fmt.Sprintf("http://%s:%s", u.config.Frontend.Domain, strconv.Itoa(u.config.Frontend.Port))
 	}
 	if u.config.Discord.ClientID == "" ||
-	u.config.Discord.ClientSecret == "" ||
-	u.config.Server.Domain == "" ||
-	u.config.Frontend.Domain == "" ||
-	u.config.Discord.AdminID == "" ||
-	u.config.Discord.GuildID == "" {
+		u.config.Discord.ClientSecret == "" ||
+		u.config.Server.Domain == "" ||
+		u.config.Frontend.Domain == "" ||
+		u.config.Discord.AdminID == "" ||
+		u.config.Discord.GuildID == "" {
 		u.Log.Error(ctx, "Incomplete Discord configuration")
 		return clientRedirectURL, errors.ErrInternal
 	}
@@ -57,26 +57,26 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 	var redirectURI string
 	if u.config.Server.HTTPS {
 		scheme = "https://"
-		redirectURI = scheme + u.config.Server.Domain+ "/oauth/discord"
+		redirectURI = scheme + u.config.Server.Domain + "/oauth/discord"
 	} else {
 		scheme = "http://"
 		redirectURI = scheme + u.config.Server.Domain + ":" + strconv.Itoa(u.config.Server.Port) + "/oauth/discord"
 	}
 	accessToken, err := u.discordOAuth.GetAccessToken(ctx, u.config.Discord.ClientID, u.config.Discord.ClientSecret, code, redirectURI)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting access token: " + err.Error())
+		u.Log.Error(ctx, "Error getting access token: "+err.Error())
 		return clientRedirectURL, errors.ErrInternal
 	}
 	discordGuildMemberData, err := u.discordOAuth.GetGuildMemberData(ctx, accessToken, u.config.Discord.GuildID)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting user discord id: " + err.Error())
+		u.Log.Error(ctx, "Error getting user discord id: "+err.Error())
 		return clientRedirectURL, errors.ErrInternal
 	}
 	discordId := discordGuildMemberData.User.ID
 	userDiscordRoles := discordGuildMemberData.Roles
 
 	// Check for admin role
-		if discordId == u.config.Discord.AdminID {
+	if discordId == u.config.Discord.AdminID {
 		token, err := u.generateToken(ctx, discordId, discordGuildMemberData, role.Admin)
 		if err != nil {
 			return clientRedirectURL, err
@@ -86,7 +86,7 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 
 	setting, err := u.systemSettingRepo.GetSetting()
 	if err != nil {
-		u.Log.Error(ctx, "Error getting system setting: " + err.Error())
+		u.Log.Error(ctx, "Error getting system setting: "+err.Error())
 		return clientRedirectURL, errors.ErrInternal
 	}
 
@@ -116,9 +116,9 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 }
 
 func (u *DiscordLoginUseCase) generateToken(ctx context.Context, discordId string, discordGuildMemberData *dto.DiscordGuildMemberDTO, userRole role.Role) (string, error) {
-	jwt, err := u.jwtGenerator.GenerateToken(ctx, discordId, discordGuildMemberData, userRole, u.config.JWT.SecretKey)
+	jwt, err := u.jwtGenerator.GenerateDiscordToken(ctx, discordId, discordGuildMemberData, userRole, u.config.JWT.SecretKey)
 	if err != nil {
-		u.Log.Error(ctx, "Error generating JWT: " + err.Error())
+		u.Log.Error(ctx, "Error generating JWT: "+err.Error())
 		return "", errors.ErrInternal
 	}
 	return jwt, nil

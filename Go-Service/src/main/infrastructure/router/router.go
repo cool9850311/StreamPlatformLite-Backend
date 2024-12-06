@@ -16,6 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"Go-Service/src/main/infrastructure/outer_api/discord"
 	"Go-Service/src/main/infrastructure/util"
+	
 )
 
 func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {
@@ -64,6 +65,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)
 	discordOAuthOuterApi := discord.NewDiscordOAuthImpl()
 	jwtGenerator := util.NewJWTLibrary()
+	bcrypt := util.NewBcryptLibrary()
 	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator)
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
@@ -72,10 +74,21 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	fileCache := cache.NewFileCache()
 	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
+	accountRepo := repository.NewMongoAccountRepository(db)
+	originAccountUseCase := usecase.NewOriginAccountUseCase(accountRepo, log, bcrypt, config.AppConfig, jwtGenerator)
+	originAccountController := controller.NewOriginAccountController(log, originAccountUseCase)
 
 	login := r.Group("/")
 	{
 		login.GET("/oauth/discord", discordOauthController.Callback)
+	}
+	originAccount := r.Group("/origin-account")
+	{
+		originAccount.POST("/login", originAccountController.Login)
+		originAccount.POST("/create", middleware.JWTAuthMiddleware(log), originAccountController.CreateAccount)
+		originAccount.PATCH("/change-password", middleware.JWTAuthMiddleware(log), originAccountController.ChangePassword)
+		originAccount.GET("/list", middleware.JWTAuthMiddleware(log), originAccountController.GetAccountList)
+		originAccount.DELETE("/delete", middleware.JWTAuthMiddleware(log), originAccountController.DeleteAccount)
 	}
 
 	systemSettings := r.Group("/system-settings")
