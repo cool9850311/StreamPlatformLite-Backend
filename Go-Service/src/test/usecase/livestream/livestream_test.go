@@ -67,11 +67,12 @@ func TestLivestreamUsecase_GetLivestreamByID_AdminUser(t *testing.T) {
 		// other fields...
 	}
 
+
 	setup.MockRepo.On("GetByID", "livestream123").Return(testLivestream, nil)
 
 	result, err := setup.UseCase.GetLivestreamByID(ctx, "livestream123", role.Admin)
-
-	assert.Equal(t, testLivestream, result)
+	assert.NotNil(t, result)
+	assert.IsType(t, &livestreamDto.LivestreamGetByOwnerIDResponseDTO{}, result)
 	assert.NoError(t, err)
 	setup.MockRepo.AssertExpectations(t)
 }

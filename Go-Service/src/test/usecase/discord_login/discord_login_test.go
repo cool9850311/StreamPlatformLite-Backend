@@ -76,7 +76,7 @@ func TestDiscordLoginUseCase_AdminUser(t *testing.T) {
 		User:  dto.DiscordUserDTO{ID: "admin123"},
 		Roles: []string{},
 	}, nil)
-	mockJWTGenerator.On("GenerateToken", ctx, "admin123", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Admin, "fakeJWTSecret").Return("jwtToken", nil)
+	mockJWTGenerator.On("GenerateDiscordToken", ctx, "admin123", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Admin, "fakeJWTSecret").Return("jwtToken", nil)
 	result, err := useCase.Login(ctx, "adminCode")
 
 	assert.Contains(t, result, "token=")
@@ -97,7 +97,7 @@ func TestDiscordLoginUseCase_EditorRole(t *testing.T) {
 		User:  dto.DiscordUserDTO{ID: "fakeEditorID"},
 		Roles: []string{"editor123"},
 	}, nil)
-	mockJWTGenerator.On("GenerateToken", ctx, "fakeEditorID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Editor, "fakeJWTSecret").Return("jwtToken", nil)
+	mockJWTGenerator.On("GenerateDiscordToken", ctx, "fakeEditorID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Editor, "fakeJWTSecret").Return("jwtToken", nil)
 	result, err := useCase.Login(ctx, "editorCode")
 
 	assert.Contains(t, result, "token=")
@@ -118,7 +118,7 @@ func TestDiscordLoginUseCase_UserRoleWithStreamAccess(t *testing.T) {
 		User:  dto.DiscordUserDTO{ID: "fakeUserID"},
 		Roles: []string{"user123"},
 	}, nil)
-	mockJWTGenerator.On("GenerateToken", ctx, "fakeUserID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.User, "fakeJWTSecret").Return("jwtToken", nil)
+	mockJWTGenerator.On("GenerateDiscordToken", ctx, "fakeUserID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.User, "fakeJWTSecret").Return("jwtToken", nil)
 	result, err := useCase.Login(ctx, "userCode")
 
 	assert.Contains(t, result, "token=")
@@ -139,7 +139,7 @@ func TestDiscordLoginUseCase_GuestRole(t *testing.T) {
 		User:  dto.DiscordUserDTO{ID: "fakeGuestID"},
 		Roles: []string{},
 	}, nil)
-	mockJWTGenerator.On("GenerateToken", ctx, "fakeGuestID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Guest, "fakeJWTSecret").Return("jwtToken", nil)
+	mockJWTGenerator.On("GenerateDiscordToken", ctx, "fakeGuestID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Guest, "fakeJWTSecret").Return("jwtToken", nil)
 	result, err := useCase.Login(ctx, "guestCode")
 
 	assert.Contains(t, result, "token=")
