@@ -33,4 +33,4 @@ func (m *MockAccountRepository) Update(acc account.Account) error {
 func (m *MockAccountRepository) Delete(username string) error {
 	args := m.Called(username)
 	return args.Error(0)
-} 
+}

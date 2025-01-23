@@ -25,7 +25,6 @@ func (r *MongoLivestreamRepository) GetByID(id string) (*livestream.Livestream, 
 	return &ls, err
 }
 
-
 func (r *MongoLivestreamRepository) GetByOwnerID(ownerID string) (*livestream.Livestream, error) {
 	var ls livestream.Livestream
 	err := r.collection.FindOne(context.Background(), bson.M{"owneruserid": ownerID}).Decode(&ls)

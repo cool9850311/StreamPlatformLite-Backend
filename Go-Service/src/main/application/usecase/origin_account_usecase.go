@@ -1,36 +1,36 @@
 package usecase
 
 import (
-	"context"
-	"errors"
-	"Go-Service/src/main/application/interface/repository"
-	"Go-Service/src/main/domain/interface/logger"
-	"Go-Service/src/main/domain/entity/account"
-	"Go-Service/src/main/domain/entity/role"
-	"Go-Service/src/main/domain/interface/libarary/bcrypt"
-	"math/rand"
 	"Go-Service/src/main/application/dto/account"
-	innerErrors"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/application/dto/config"
 	"Go-Service/src/main/application/interface/jwt"
+	"Go-Service/src/main/application/interface/repository"
+	"Go-Service/src/main/domain/entity/account"
+	innerErrors "Go-Service/src/main/domain/entity/errors"
+	"Go-Service/src/main/domain/entity/role"
+	"Go-Service/src/main/domain/interface/libarary/bcrypt"
+	"Go-Service/src/main/domain/interface/logger"
+	"context"
+	"errors"
 	"fmt"
+	"math/rand"
 	"strconv"
 )
 
 type OriginAccountUseCase struct {
-	accountRepo repository.AccountRepository
-	log         logger.Logger
-	bcrypt      bcrypt.BcryptGenerator
-	config      config.Config
+	accountRepo  repository.AccountRepository
+	log          logger.Logger
+	bcrypt       bcrypt.BcryptGenerator
+	config       config.Config
 	jwtGenerator jwt.JWTGenerator
 }
 
 func NewOriginAccountUseCase(accountRepo repository.AccountRepository, log logger.Logger, bcrypt bcrypt.BcryptGenerator, config config.Config, jwtGenerator jwt.JWTGenerator) *OriginAccountUseCase {
 	return &OriginAccountUseCase{
-		accountRepo: accountRepo,
-		log:         log,
-		bcrypt:      bcrypt,
-		config:      config,
+		accountRepo:  accountRepo,
+		log:          log,
+		bcrypt:       bcrypt,
+		config:       config,
 		jwtGenerator: jwtGenerator,
 	}
 }
@@ -52,7 +52,6 @@ func (uc *OriginAccountUseCase) Login(ctx context.Context, username, password st
 	}
 	return token, nil
 }
-
 
 func (uc *OriginAccountUseCase) CreateAccount(ctx context.Context, operatorRole role.Role, username string, userRole role.Role) (account.Account, error) {
 

@@ -4,8 +4,8 @@ import (
 	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/domain/entity/role"
 	"context"
-	"time"
 	"github.com/dgrijalva/jwt-go"
+	"time"
 )
 
 type JWTLibrary struct{}

@@ -1,4 +1,5 @@
 package file_cache
+
 type IFileCache interface {
 	ReadFile(filePath string) ([]byte, error)
 	StoreCache(filePath string, data []byte)

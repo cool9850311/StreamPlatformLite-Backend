@@ -2,10 +2,10 @@ package config
 
 type Config struct {
 	Server struct {
-		Port   int    `mapstructure:"port"`
-		Domain string `mapstructure:"domain"`
-		HTTPS  bool   `mapstructure:"https" default:"false"`
-		EnableGinLog bool `mapstructure:"enable_gin_log" default:"true"`
+		Port         int    `mapstructure:"port"`
+		Domain       string `mapstructure:"domain"`
+		HTTPS        bool   `mapstructure:"https" default:"false"`
+		EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
 	} `mapstructure:"server"`
 	Frontend struct {
 		Domain string `mapstructure:"domain"`

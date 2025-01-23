@@ -1,14 +1,14 @@
 package discord
 
 import (
+	"Go-Service/src/main/application/dto"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
-	"Go-Service/src/main/application/dto"
+	"io"
 	"net/http"
 	"net/url"
-	"io"
-	"context"
 )
 
 type DiscordOAuthImpl struct{}

@@ -19,7 +19,7 @@ func main() {
 	logger.Info(context.TODO(), "start InitRedisClient")
 	initializer.InitRedisClient()
 	logger.Info(context.TODO(), "start InitLiveStreamService")
-	initializer.InitLiveStreamService(logger, initializer.DB) 
+	initializer.InitLiveStreamService(logger, initializer.DB)
 	logger.Info(context.TODO(), "start InitCronJob")
 	initializer.InitCronJob(logger, initializer.DB)
 	logger.Info(context.TODO(), "start router")

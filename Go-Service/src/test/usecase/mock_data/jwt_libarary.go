@@ -21,4 +21,3 @@ func (m *MockJWTGenerator) GenerateOriginToken(ctx context.Context, userID strin
 	args := m.Called(ctx, userID, username, userRole, secretKey)
 	return args.String(0), args.Error(1)
 }
-

@@ -2,11 +2,11 @@ package usecase
 
 import (
 	"Go-Service/src/main/application/interface/repository"
+	"Go-Service/src/main/domain/entity/errors"
+	"Go-Service/src/main/domain/entity/role"
+	"Go-Service/src/main/domain/entity/system"
 	"Go-Service/src/main/domain/interface/logger"
 	"context"
-	"Go-Service/src/main/domain/entity/system"
-	"Go-Service/src/main/domain/entity/role"
-	"Go-Service/src/main/domain/entity/errors"
 )
 
 type SystemSettingUseCase struct {
@@ -27,7 +27,7 @@ func (u *SystemSettingUseCase) CheckRole(userRole role.Role) error {
 	}
 	return nil
 }
-func (u *SystemSettingUseCase) GetSetting(ctx context.Context,userRole role.Role) (*system.Setting, error) {
+func (u *SystemSettingUseCase) GetSetting(ctx context.Context, userRole role.Role) (*system.Setting, error) {
 	if err := u.CheckRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to GetSetting")
 		return nil, err
@@ -39,6 +39,7 @@ func (u *SystemSettingUseCase) GetSetting(ctx context.Context,userRole role.Role
 	}
 	return setting, nil
 }
+
 // set setting
 func (u *SystemSettingUseCase) SetSetting(ctx context.Context, setting *system.Setting, userRole role.Role) error {
 	if err := u.CheckRole(userRole); err != nil {

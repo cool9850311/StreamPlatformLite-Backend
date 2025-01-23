@@ -5,18 +5,17 @@ import (
 	"Go-Service/src/main/application/interface/stream"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/interface/logger"
+	"Go-Service/src/main/infrastructure/cache"
 	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/controller"
 	"Go-Service/src/main/infrastructure/middleware"
+	"Go-Service/src/main/infrastructure/outer_api/discord"
 	"Go-Service/src/main/infrastructure/repository"
-	"Go-Service/src/main/infrastructure/cache"
+	"Go-Service/src/main/infrastructure/util"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"go.mongodb.org/mongo-driver/mongo"
 	"github.com/redis/go-redis/v9"
-	"Go-Service/src/main/infrastructure/outer_api/discord"
-	"Go-Service/src/main/infrastructure/util"
-	
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {

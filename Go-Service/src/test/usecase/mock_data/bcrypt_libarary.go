@@ -19,4 +19,4 @@ func (m *MockBcryptGenerator) HashPassword(password string) (string, error) {
 func (m *MockBcryptGenerator) CheckPasswordHash(password, hash string) bool {
 	args := m.Called(password, hash)
 	return args.Bool(0)
-} 
+}

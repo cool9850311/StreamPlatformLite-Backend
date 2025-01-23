@@ -43,4 +43,3 @@ func (r *MongoSystemSettingRepository) SetSetting(setting *system.Setting) error
 	_, errr := r.collection.UpdateOne(context.Background(), bson.M{}, bson.M{"$set": setting})
 	return errr
 }
-

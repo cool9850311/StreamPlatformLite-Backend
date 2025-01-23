@@ -2,17 +2,16 @@
 package config
 
 import (
+	"Go-Service/src/main/application/dto/config"
+	"Go-Service/src/main/infrastructure/util"
+	"github.com/joho/godotenv"
 	"log"
 	"os"
 	"strconv"
-	"Go-Service/src/main/infrastructure/util"
-	"github.com/joho/godotenv"
-	"Go-Service/src/main/application/dto/config"
 )
 
-
-
 var AppConfig config.Config
+
 func LoadConfig() {
 	// Load .env file
 	projectRootPath, err := util.GetProjectRootPath()
@@ -41,7 +40,7 @@ func LoadConfig() {
 	AppConfig.Frontend.Domain = os.Getenv("FRONTEND_DOMAIN")
 	AppConfig.Frontend.Port, err = strconv.Atoi(os.Getenv("FRONTEND_PORT"))
 	AppConfig.Redis.URI = os.Getenv("REDIS_URI")
-	
+
 	if err != nil {
 		log.Fatalf("Invalid FRONTEND_PORT: %s", err)
 	}

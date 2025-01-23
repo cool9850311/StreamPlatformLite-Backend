@@ -9,20 +9,20 @@ import (
 	"Go-Service/src/main/domain/entity/account"
 	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/test/usecase/mock_data"
-	
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+
 	"Go-Service/src/main/application/dto/config"
 	innerErrors "Go-Service/src/main/domain/entity/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // Define a struct to hold all the mock objects
 type OriginAccountTestSetup struct {
-	MockRepo   *mock_data.MockAccountRepository
-	MockLogger *mock_data.MockLogger
-	MockBcrypt *mock_data.MockBcryptGenerator
+	MockRepo         *mock_data.MockAccountRepository
+	MockLogger       *mock_data.MockLogger
+	MockBcrypt       *mock_data.MockBcryptGenerator
 	MockJWTGenerator *mock_data.MockJWTGenerator
-	UseCase    usecase.OriginAccountUseCase
+	UseCase          usecase.OriginAccountUseCase
 }
 
 func setupOriginAccount() *OriginAccountTestSetup {
@@ -45,11 +45,11 @@ func setupOriginAccount() *OriginAccountTestSetup {
 	useCase := usecase.NewOriginAccountUseCase(mockRepo, mockLogger, mockBcrypt, cfg, mockJWTGenerator)
 
 	return &OriginAccountTestSetup{
-		MockRepo:   mockRepo,
-		MockLogger: mockLogger,
-		MockBcrypt: mockBcrypt,
+		MockRepo:         mockRepo,
+		MockLogger:       mockLogger,
+		MockBcrypt:       mockBcrypt,
 		MockJWTGenerator: mockJWTGenerator,
-		UseCase:    *useCase,
+		UseCase:          *useCase,
 	}
 }
 

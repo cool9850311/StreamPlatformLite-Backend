@@ -67,10 +67,10 @@ func (r *RedisChat) AddChat(livestreamUUID string, chat chat.Chat) error {
 	_, err := r.client.XAdd(ctx, &redis.XAddArgs{
 		Stream: key,
 		Values: map[string]interface{}{
-			"user_id":   chat.UserID,
-			"avatar":    chat.Avatar,
-			"username":  chat.Username,
-			"message":   chat.Message,
+			"user_id":  chat.UserID,
+			"avatar":   chat.Avatar,
+			"username": chat.Username,
+			"message":  chat.Message,
 		},
 	}).Result()
 

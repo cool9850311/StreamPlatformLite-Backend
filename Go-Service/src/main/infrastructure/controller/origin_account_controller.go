@@ -1,24 +1,24 @@
 package controller
 
 import (
-	"Go-Service/src/main/domain/interface/logger"
-	"github.com/gin-gonic/gin"
 	"Go-Service/src/main/application/dto"
-	"Go-Service/src/main/infrastructure/message"
-	"net/http"
 	"Go-Service/src/main/application/usecase"
-	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/main/domain/entity/errors"
+	"Go-Service/src/main/domain/entity/role"
+	"Go-Service/src/main/domain/interface/logger"
+	"Go-Service/src/main/infrastructure/message"
+	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
 type OriginAccountController struct {
-	Log logger.Logger
+	Log                  logger.Logger
 	originAccountUseCase *usecase.OriginAccountUseCase
 }
 
 func NewOriginAccountController(log logger.Logger, originAccountUseCase *usecase.OriginAccountUseCase) *OriginAccountController {
 	return &OriginAccountController{
-		Log: log,
+		Log:                  log,
 		originAccountUseCase: originAccountUseCase,
 	}
 }
@@ -51,7 +51,7 @@ func (c *OriginAccountController) Login(ctx *gin.Context) {
 }
 func (c *OriginAccountController) CreateAccount(ctx *gin.Context) {
 	var createAccountRequest struct {
-		Username string `json:"username"`
+		Username string    `json:"username"`
 		Role     role.Role `json:"role"`
 	}
 
@@ -70,7 +70,7 @@ func (c *OriginAccountController) CreateAccount(ctx *gin.Context) {
 		if err == errors.ErrDuplicate {
 			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Username already exists"})
 			return
-		} 
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
@@ -107,7 +107,6 @@ func (c *OriginAccountController) DeleteAccount(ctx *gin.Context) {
 	}
 	ctx.JSON(http.StatusOK, gin.H{"message": message.MsgOK})
 }
-
 
 func (c *OriginAccountController) ChangePassword(ctx *gin.Context) {
 	var changePasswordRequest struct {

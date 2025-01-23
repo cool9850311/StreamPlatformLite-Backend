@@ -28,4 +28,4 @@ func (m *MockFileCache) DeleteFile(filePath string) {
 
 func (m *MockFileCache) Range(f func(key, value interface{}) bool) {
 	m.Called(f)
-} 
+}

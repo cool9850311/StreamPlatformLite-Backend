@@ -10,16 +10,16 @@ import (
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/entity/role"
+	"Go-Service/src/main/domain/interface/file_cache"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/util"
 	"context"
-	"strconv"
-	"Go-Service/src/main/domain/interface/file_cache"
 	"github.com/google/uuid"
-	"sync"
 	"path/filepath"
-	"time"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 )
 
 type LivestreamUsecase struct {
@@ -29,8 +29,8 @@ type LivestreamUsecase struct {
 	streamService    stream.ILivestreamService
 	viewerCountCache cache.ViewerCount
 	chatCache        cache.Chat
-	fileCache       file_cache.IFileCache
-	m3u8Lock        sync.Mutex
+	fileCache        file_cache.IFileCache
+	m3u8Lock         sync.Mutex
 }
 
 func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat, fileCache file_cache.IFileCache) *LivestreamUsecase {
@@ -74,7 +74,7 @@ func (u *LivestreamUsecase) GetLivestreamByID(ctx context.Context, id string, us
 	}
 	livestream, err := u.LivestreamRepo.GetByID(id)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream by ID: " + err.Error())
+		u.Log.Error(ctx, "Error getting livestream by ID: "+err.Error())
 		return nil, err
 	}
 	livestreamResponse := livestreamDTO.LivestreamGetByOwnerIDResponseDTO{
@@ -97,7 +97,7 @@ func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID 
 	}
 	livestream, err := u.LivestreamRepo.GetByOwnerID(ownerID)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream by owner ID: " + err.Error())
+		u.Log.Error(ctx, "Error getting livestream by owner ID: "+err.Error())
 		return nil, err
 	}
 	livestreamResponse := livestreamDTO.LivestreamGetByOwnerIDResponseDTO{
@@ -119,7 +119,7 @@ func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*li
 	}
 	livestream, err := u.LivestreamRepo.GetOne()
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream: " + err.Error())
+		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
 		return nil, err
 	}
 	prefix := "http://"
@@ -170,12 +170,12 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 	}
 	err = u.LivestreamRepo.Create(&livestreamEntity)
 	if err != nil {
-		u.Log.Error(ctx, "Error creating livestream: " + err.Error())
+		u.Log.Error(ctx, "Error creating livestream: "+err.Error())
 		return nil, err
 	}
 	err = u.streamService.OpenStream(livestreamData.Name, streamUUID, apiKey, outputPathUUID)
 	if err != nil {
-		u.Log.Error(ctx, "Error opening stream Service: " + err.Error())
+		u.Log.Error(ctx, "Error opening stream Service: "+err.Error())
 		return nil, err
 	}
 	return &livestreamDTO.LivestreamCreateResponseDTO{
@@ -190,7 +190,7 @@ func (u *LivestreamUsecase) UpdateLivestream(ctx context.Context, livestream *li
 	}
 	err := u.LivestreamRepo.Update(livestream)
 	if err != nil {
-		u.Log.Error(ctx, "Error updating livestream: " + err.Error())
+		u.Log.Error(ctx, "Error updating livestream: "+err.Error())
 		return err
 	}
 	return nil
@@ -203,12 +203,12 @@ func (u *LivestreamUsecase) DeleteLivestream(ctx context.Context, id string, use
 	}
 	err := u.LivestreamRepo.Delete(id)
 	if err != nil {
-		u.Log.Error(ctx, "Error deleting livestream: " + err.Error())
+		u.Log.Error(ctx, "Error deleting livestream: "+err.Error())
 		return err
 	}
 	err = u.streamService.CloseStream(id)
 	if err != nil {
-		u.Log.Error(ctx, "Error closing stream: " + err.Error())
+		u.Log.Error(ctx, "Error closing stream: "+err.Error())
 		return err
 	}
 	return nil
@@ -263,7 +263,7 @@ func (u *LivestreamUsecase) AddChat(ctx context.Context, identityProvider string
 	}
 	if livestream.MuteList != nil {
 		for _, userID := range livestream.MuteList {
-			if userID == identityProvider + "-"+ chat.UserID {
+			if userID == identityProvider+"-"+chat.UserID {
 				return errors.ErrMuteUser
 			}
 		}
@@ -321,7 +321,7 @@ func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string) ([]byt
 
 	fileData, err := u.fileCache.ReadFile(filePath)
 	if err != nil {
-		u.Log.Error(ctx, "Error reading file: " + err.Error())
+		u.Log.Error(ctx, "Error reading file: "+err.Error())
 		return nil, err
 	}
 
