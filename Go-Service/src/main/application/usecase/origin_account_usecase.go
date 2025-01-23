@@ -46,7 +46,7 @@ func (uc *OriginAccountUseCase) Login(ctx context.Context, username, password st
 		uc.log.Error(ctx, "Login failed CheckPasswordHash: ")
 		return "", innerErrors.ErrPassword
 	}
-	token, err := uc.generateToken(ctx, username, acc.Role)
+	token, err := uc.generateToken(ctx, acc.ID, username, acc.Role)
 	if err != nil {
 		return token, err
 	}
@@ -176,8 +176,8 @@ func (u *OriginAccountUseCase) checkUserRole(userRole role.Role) error {
 	}
 	return nil
 }
-func (u *OriginAccountUseCase) generateToken(ctx context.Context, username string, userRole role.Role) (string, error) {
-	jwt, err := u.jwtGenerator.GenerateOriginToken(ctx, username, userRole, u.config.JWT.SecretKey)
+func (u *OriginAccountUseCase) generateToken(ctx context.Context, userID string, username string, userRole role.Role) (string, error) {
+	jwt, err := u.jwtGenerator.GenerateOriginToken(ctx, userID, username, userRole, u.config.JWT.SecretKey)
 	if err != nil {
 		u.log.Error(ctx, "Error generating JWT: "+err.Error())
 		return "", innerErrors.ErrInternal

@@ -6,10 +6,12 @@ import (
 	"context"
 	"log"
 
+	"Go-Service/src/main/domain/entity/errors"
+
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"Go-Service/src/main/domain/entity/errors"
 )
 
 type MongoAccountRepository struct {
@@ -37,7 +39,7 @@ func NewMongoAccountRepository(db *mongo.Database) repository.AccountRepository 
 }
 
 func (r *MongoAccountRepository) Create(acc account.Account) error {
-	
+	acc.ID = primitive.NewObjectID().Hex()
 	_, err := r.collection.InsertOne(context.TODO(), acc)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {

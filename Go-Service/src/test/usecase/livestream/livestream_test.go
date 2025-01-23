@@ -19,12 +19,12 @@ import (
 
 // Define a struct to hold all the mock objects
 type LivestreamTestSetup struct {
-	MockRepo            *mock_data.MockLivestreamRepository
-	MockLogger          *mock_data.MockLogger
+	MockRepo             *mock_data.MockLivestreamRepository
+	MockLogger           *mock_data.MockLogger
 	MockViewerCountCache *mock_data.MockViewerCountCache
-	MockChatCache       *mock_data.MockChatCache
-	MockFileCache       *mock_data.MockFileCache
-	UseCase             usecase.LivestreamUsecase
+	MockChatCache        *mock_data.MockChatCache
+	MockFileCache        *mock_data.MockFileCache
+	UseCase              usecase.LivestreamUsecase
 }
 
 func setupLivestream() *LivestreamTestSetup {
@@ -49,12 +49,12 @@ func setupLivestream() *LivestreamTestSetup {
 	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache, mockChatCache, mockFileCache)
 
 	return &LivestreamTestSetup{
-		MockRepo:            mockRepo,
-		MockLogger:          mockLogger,
+		MockRepo:             mockRepo,
+		MockLogger:           mockLogger,
 		MockViewerCountCache: mockViewerCountCache,
-		MockChatCache:       mockChatCache,
-		MockFileCache:       mockFileCache,
-		UseCase:             *useCase, // Return the pointer directly
+		MockChatCache:        mockChatCache,
+		MockFileCache:        mockFileCache,
+		UseCase:              *useCase, // Return the pointer directly
 	}
 }
 
@@ -66,7 +66,6 @@ func TestLivestreamUsecase_GetLivestreamByID_AdminUser(t *testing.T) {
 		UUID: "livestream123",
 		// other fields...
 	}
-
 
 	setup.MockRepo.On("GetByID", "livestream123").Return(testLivestream, nil)
 
@@ -320,7 +319,7 @@ func TestLivestreamUsecase_AddChat_AdminUser(t *testing.T) {
 	setup.MockRepo.On("GetByID", "livestream123").Return(&livestream.Livestream{}, nil)
 	setup.MockChatCache.On("AddChat", "livestream123", testChat).Return(nil)
 
-	err := setup.UseCase.AddChat(ctx, role.Admin, "livestream123", testChat)
+	err := setup.UseCase.AddChat(ctx, "identityProvider", role.Admin, "livestream123", testChat)
 
 	assert.NoError(t, err)
 	setup.MockChatCache.AssertExpectations(t)
@@ -332,7 +331,7 @@ func TestLivestreamUsecase_AddChat_UnauthorizedUser(t *testing.T) {
 
 	testChat := chat.Chat{UserID: "user123", Message: "Hello"}
 
-	err := setup.UseCase.AddChat(ctx, role.Guest, "livestream123", testChat)
+	err := setup.UseCase.AddChat(ctx, "identityProvider", role.Guest, "livestream123", testChat)
 
 	assert.Error(t, err)
 }
@@ -362,9 +361,9 @@ func TestLivestreamUsecase_MuteUser_EditorUser(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	setup.MockRepo.On("MuteUser", "livestream123", "user123").Return(nil)
+	setup.MockRepo.On("MuteUser", "identityProvider", "livestream123", "user123").Return(nil)
 
-	err := setup.UseCase.MuteUser(ctx, role.Editor, "livestream123", "user123")
+	err := setup.UseCase.MuteUser(ctx, "identityProvider", role.Editor, "livestream123", "user123")
 
 	assert.NoError(t, err)
 	setup.MockRepo.AssertExpectations(t)
@@ -374,7 +373,7 @@ func TestLivestreamUsecase_MuteUser_UnauthorizedUser(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	err := setup.UseCase.MuteUser(ctx, role.User, "livestream123", "user123")
+	err := setup.UseCase.MuteUser(ctx, "identityProvider", role.User, "livestream123", "user123")
 
 	assert.Error(t, err)
 }

@@ -47,7 +47,7 @@ func (m *MockLivestreamRepository) Delete(id string) error {
 	args := m.Called(id)
 	return args.Error(0)
 }
-func (m *MockLivestreamRepository) MuteUser(livestreamUUID string, userID string) error {
-	args := m.Called(livestreamUUID, userID)
+func (m *MockLivestreamRepository) MuteUser(identityProvider string, livestreamUUID string, userID string) error {
+	args := m.Called(identityProvider, livestreamUUID, userID)
 	return args.Error(0)
 }

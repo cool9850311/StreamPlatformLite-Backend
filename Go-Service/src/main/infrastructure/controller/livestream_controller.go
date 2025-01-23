@@ -146,7 +146,7 @@ func (c *LivestreamController) AddChat(ctx *gin.Context) {
 		Username: claims.UserName,
 		Message:  chatRequest.Message,
 	}
-	err := c.livestreamUseCase.AddChat(ctx, claims.Role, chatRequest.StreamUUID, chat)
+	err := c.livestreamUseCase.AddChat(ctx, claims.IdentityProvider, claims.Role, chatRequest.StreamUUID, chat)
 	if err != nil {
 		if err == errors.ErrMuteUser {
 			ctx.JSON(http.StatusForbidden, gin.H{"message": message.MsgForbidden})
@@ -186,7 +186,7 @@ func (c *LivestreamController) MuteUser(ctx *gin.Context) {
 	}
 	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
 
-	err := c.livestreamUseCase.MuteUser(ctx, claims.Role, muteUserRequest.StreamUUID, muteUserRequest.UserID)
+	err := c.livestreamUseCase.MuteUser(ctx, claims.IdentityProvider, claims.Role, muteUserRequest.StreamUUID, muteUserRequest.UserID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return

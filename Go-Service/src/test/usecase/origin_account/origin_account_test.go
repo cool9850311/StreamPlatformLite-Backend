@@ -57,10 +57,10 @@ func TestOriginAccountUseCase_Login_Success(t *testing.T) {
 	setup := setupOriginAccount()
 	ctx := context.Background()
 
-	mockAccount := &account.Account{Username: "testuser", Password: "hashedpassword", Role: role.User}
+	mockAccount := &account.Account{ID: "testuser", Username: "testuser", Password: "hashedpassword", Role: role.User}
 	setup.MockRepo.On("GetByUsername", "testuser").Return(mockAccount, nil)
 	setup.MockBcrypt.On("CheckPasswordHash", "password", "hashedpassword").Return(true)
-	setup.MockJWTGenerator.On("GenerateOriginToken", ctx, "testuser", role.User, mock.Anything).Return("mockToken", nil)
+	setup.MockJWTGenerator.On("GenerateOriginToken", ctx, mockAccount.ID, mockAccount.Username, role.User, mock.Anything).Return("mockToken", nil)
 
 	redirectURL, err := setup.UseCase.Login(ctx, "testuser", "password")
 

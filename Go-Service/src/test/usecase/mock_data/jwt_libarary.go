@@ -17,7 +17,8 @@ func (m *MockJWTGenerator) GenerateDiscordToken(ctx context.Context, discordId s
 	args := m.Called(ctx, discordId, guildMemberData, userRole, secretKey)
 	return args.String(0), args.Error(1)
 }
-func (m *MockJWTGenerator) GenerateOriginToken(ctx context.Context, username string, userRole role.Role, secretKey string) (string, error) {
-	args := m.Called(ctx, username, userRole, secretKey)
+func (m *MockJWTGenerator) GenerateOriginToken(ctx context.Context, userID string, username string, userRole role.Role, secretKey string) (string, error) {
+	args := m.Called(ctx, userID, username, userRole, secretKey)
 	return args.String(0), args.Error(1)
 }
+

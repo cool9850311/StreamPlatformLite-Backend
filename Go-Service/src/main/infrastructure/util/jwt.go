@@ -31,8 +31,9 @@ func (j *JWTLibrary) GenerateDiscordToken(ctx context.Context, discordId string,
 	}
 	return tokenString, nil
 }
-func (j *JWTLibrary) GenerateOriginToken(ctx context.Context, username string, userRole role.Role, secretKey string) (string, error) {
+func (j *JWTLibrary) GenerateOriginToken(ctx context.Context, userID string, username string, userRole role.Role, secretKey string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, dto.Claims{
+		UserID:           userID,
 		UserName:         username,
 		IdentityProvider: "Origin",
 		Role:             userRole,
