@@ -10,7 +10,10 @@ import (
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/message"
 	"Go-Service/src/main/infrastructure/util"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
@@ -203,13 +206,56 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 
 	filePath := filepath.Clean(rootPath + "/hls/" + ctx.Param("uuid") + "/" + filename)
 
-	fileData, err := c.livestreamUseCase.GetFile(ctx, filePath)
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	fileData, err := c.livestreamUseCase.GetFile(ctx, filePath, claims.Role)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
 	}
 	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	ctx.Data(http.StatusOK, getContentType(filename), fileData)
+}
+func (c *LivestreamController) GetRecord(ctx *gin.Context) {
+	id := ctx.Param("uuid")
+	rootPath, err := util.GetProjectRootPath()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+
+	filePath := filepath.Clean(rootPath + "/hls/" + id + "/" + "*.mp4")
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	fullFilePath, err := c.livestreamUseCase.GetRecord(ctx, id, filePath, claims.Role)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
+		return
+	}
+	file, err := os.Open(fullFilePath)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
+		return
+	}
+	defer file.Close()
+
+	// Get file info to determine size
+	fileInfo, err := file.Stat()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+
+	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+	ctx.Header("Content-Type", "video/mp4")
+	ctx.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+	filename := filepath.Base(file.Name())
+	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", util.EncodeRFC5987(filename)))
+	ctx.Header("Access-Control-Expose-Headers", "Content-Length, Content-Disposition, Cache-Control")
+
+	_, err = io.Copy(ctx.Writer, file)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
 }
 
 func getContentType(filename string) string {

@@ -1,3 +1,4 @@
+//go:build integration
 package infrastructure
 
 import (
@@ -32,12 +33,11 @@ func TestLivestreamService(t *testing.T) {
 	time.Sleep(time.Second)
 
 	// Open a stream
-	service.OpenStream("test1", "1111111", "test", "test2")
+	service.OpenStream("test1", "1111111", "test", "test2", true)
 	// Wait for 30 seconds
 	time.Sleep(30 * time.Second)
 
 	// Update the stream API key
-	// err = service.UpdateStreamOutPutPathUUID("1111111", "newApiKey")
 	err = service.CloseStream("1111111")
 	if err != nil {
 		t.Fatalf("Failed to update stream API key: %v", err)

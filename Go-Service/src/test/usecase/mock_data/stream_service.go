@@ -8,11 +8,7 @@ type MockLivestreamService struct {
 	mock.Mock
 }
 
-func (m *MockLivestreamService) OpenStream(name, uuid, apiKey, outputPathUUID string) error {
-	return nil
-}
-
-func (m *MockLivestreamService) UpdateStreamOutPutPathUUID(uuid, outputPathUUID string) error {
+func (m *MockLivestreamService) OpenStream(name, uuid, apiKey string, isRecord bool) error {
 	return nil
 }
 

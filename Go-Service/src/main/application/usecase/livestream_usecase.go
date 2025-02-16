@@ -11,15 +11,17 @@ import (
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/main/domain/interface/file_cache"
+	"Go-Service/src/main/domain/interface/libarary/ffmpeg"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/util"
 	"context"
-	"github.com/google/uuid"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type LivestreamUsecase struct {
@@ -30,10 +32,12 @@ type LivestreamUsecase struct {
 	viewerCountCache cache.ViewerCount
 	chatCache        cache.Chat
 	fileCache        file_cache.IFileCache
+	ffmpegLibrary    ffmpeg.FfmpegLibrary
 	m3u8Lock         sync.Mutex
+	convertTaskLock  sync.Mutex
 }
 
-func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat, fileCache file_cache.IFileCache) *LivestreamUsecase {
+func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat, fileCache file_cache.IFileCache, ffmpegLibrary ffmpeg.FfmpegLibrary) *LivestreamUsecase {
 	u := &LivestreamUsecase{
 		LivestreamRepo:   livestreamRepo,
 		Log:              log,
@@ -42,6 +46,7 @@ func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log lo
 		viewerCountCache: viewerCountCache,
 		chatCache:        chatCache,
 		fileCache:        fileCache,
+		ffmpegLibrary:    ffmpegLibrary,
 	}
 	go u.startCacheCleanup()
 	return u
@@ -86,6 +91,7 @@ func (u *LivestreamUsecase) GetLivestreamByID(ctx context.Context, id string, us
 		StreamPushURL: "rtmp://" + u.config.Server.Domain + ":1935/" + livestream.APIKey,
 		BanList:       livestream.BanList,
 		MuteList:      livestream.MuteList,
+		IsRecord:      livestream.IsRecord,
 	}
 	return &livestreamResponse, nil
 }
@@ -109,6 +115,7 @@ func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID 
 		StreamPushURL: "rtmp://" + u.config.Server.Domain + ":1935/" + livestream.APIKey,
 		BanList:       livestream.BanList,
 		MuteList:      livestream.MuteList,
+		IsRecord:      livestream.IsRecord,
 	}
 	return &livestreamResponse, nil
 }
@@ -134,7 +141,7 @@ func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*li
 		Name:        livestream.Name,
 		Title:       livestream.Title,
 		Information: livestream.Information,
-		StreamURL:   prefix + u.config.Server.Domain + port + "/livestream/" + livestream.OutputPathUUID + "/playlist.m3u8",
+		StreamURL:   prefix + u.config.Server.Domain + port + "/livestream/" + livestream.UUID + "/playlist.m3u8",
 	}
 	return &livestreamResponse, nil
 }
@@ -155,25 +162,24 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 		return nil, err
 	}
 	streamUUID := uuid.New().String()
-	outputPathUUID := uuid.New().String()
 	livestreamEntity := livestream.Livestream{
-		UUID:           streamUUID,
-		APIKey:         apiKey,
-		OutputPathUUID: outputPathUUID,
-		OwnerUserId:    userID,
-		Name:           livestreamData.Name,
-		Visibility:     livestreamData.Visibility,
-		Title:          livestreamData.Title,
-		Information:    livestreamData.Information,
-		BanList:        []string{},
-		MuteList:       []string{},
+		UUID:        streamUUID,
+		APIKey:      apiKey,
+		OwnerUserId: userID,
+		Name:        livestreamData.Name,
+		Visibility:  livestreamData.Visibility,
+		Title:       livestreamData.Title,
+		Information: livestreamData.Information,
+		BanList:     []string{},
+		MuteList:    []string{},
+		IsRecord:    livestreamData.IsRecord,
 	}
 	err = u.LivestreamRepo.Create(&livestreamEntity)
 	if err != nil {
 		u.Log.Error(ctx, "Error creating livestream: "+err.Error())
 		return nil, err
 	}
-	err = u.streamService.OpenStream(livestreamData.Name, streamUUID, apiKey, outputPathUUID)
+	err = u.streamService.OpenStream(livestreamData.Name, streamUUID, apiKey, livestreamData.IsRecord)
 	if err != nil {
 		u.Log.Error(ctx, "Error opening stream Service: "+err.Error())
 		return nil, err
@@ -307,9 +313,20 @@ func (u *LivestreamUsecase) MuteUser(ctx context.Context, identityProvider strin
 	}
 	return nil
 }
-func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string) ([]byte, error) {
+func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string, userRole role.Role) ([]byte, error) {
+	if err := u.checkUserRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to GetFile")
+		return nil, err
+	}
 	ext := filepath.Ext(filePath)
-
+	if ext == ".mp4" {
+		u.Log.Error(ctx, "Unauthorized access to mp4")
+		return nil, errors.ErrNotFound
+	}
+	if filepath.Base(filePath) == "record.m3u8" {
+		u.Log.Error(ctx, "Unauthorized access to record.m3u8")
+		return nil, errors.ErrNotFound
+	}
 	if ext == ".m3u8" {
 		u.m3u8Lock.Lock()
 		defer u.m3u8Lock.Unlock()
@@ -332,6 +349,46 @@ func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string) ([]byt
 	}
 
 	return fileData, nil
+}
+func (u *LivestreamUsecase) GetRecord(ctx context.Context, livestreamUUID string, filePath string, userRole role.Role) (string, error) {
+	if err := u.checkAdminRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to GetRecord")
+		return "", err
+	}
+	ext := filepath.Ext(filePath)
+	if ext != ".mp4" {
+		u.Log.Error(ctx, "Not mp4 file: "+filePath)
+		return "", errors.ErrNotFound
+	}
+
+	fullFilePath, err := u.fileCache.GetSingleFileName(filePath)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting single file name: "+err.Error())
+
+		// Try to acquire the lock for conversion.
+		if !u.convertTaskLock.TryLock() {
+			return "", errors.ErrNotFound
+		}
+
+		// Instead of passing filePath as the source, construct the source file
+		// as a "record.m3u8" file in the same directory.
+		recordPath := filepath.Join(filepath.Dir(filePath), "record.m3u8")
+		go func() {
+			defer u.convertTaskLock.Unlock()
+			u.Log.Info(ctx, "Converting stream to mp4: from "+recordPath+" to "+filePath)
+			livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
+			if err != nil {
+				u.Log.Error(ctx, "Error getting livestream by ID: "+err.Error())
+				return
+			}
+			err = u.ffmpegLibrary.ConvertStreamToMp4(recordPath, livestream.Title)
+			if err != nil {
+				u.Log.Error(ctx, "Error converting stream to mp4: "+err.Error())
+			}
+		}()
+		return "", errors.ErrNotFound
+	}
+	return fullFilePath, nil
 }
 func (u *LivestreamUsecase) updateCachePeriodically(filePath string) {
 	for {

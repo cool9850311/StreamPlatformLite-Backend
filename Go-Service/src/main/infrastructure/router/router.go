@@ -71,7 +71,8 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
 	chatCache := cache.NewRedisChat(redisClient)
 	fileCache := cache.NewFileCache()
-	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache)
+	ffmpegLibrary := util.NewFfmpegLibrary()
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache, ffmpegLibrary)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
 	accountRepo := repository.NewMongoAccountRepository(db)
 	originAccountUseCase := usecase.NewOriginAccountUseCase(accountRepo, log, bcrypt, config.AppConfig, jwtGenerator)
@@ -99,6 +100,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	livestream := r.Group("/livestream")
 	{
 		livestream.GET("/:uuid/:filename", middleware.JWTAuthMiddleware(log), livestreamController.GetFile)
+		livestream.GET("/record/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetRecord)
 		livestream.POST("", middleware.JWTAuthMiddleware(log), livestreamController.CreateLivestream)
 		livestream.GET("/owner/:user_id", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByOwnerId)
 		livestream.GET("/one", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamOne)

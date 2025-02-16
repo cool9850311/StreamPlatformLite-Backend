@@ -10,6 +10,7 @@ import (
 	"Go-Service/src/main/infrastructure/livestream"
 	infraLogger "Go-Service/src/main/infrastructure/logger"
 	"Go-Service/src/main/infrastructure/repository"
+	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"log"
 	"time"
@@ -98,7 +99,7 @@ func InitLiveStreamService(log domainLogger.Logger, db *mongo.Database) {
 		log.Info(context.TODO(), "No Stream Found"+err.Error())
 		return
 	}
-	LiveStreamService.OpenStream(result.Name, result.UUID, result.APIKey, result.OutputPathUUID)
+	LiveStreamService.OpenStream(result.Name, result.UUID, result.APIKey, result.IsRecord)
 	log.Info(context.TODO(), "Livestream Started: "+result.UUID)
 	// time.Sleep(time.Second)
 
@@ -111,8 +112,9 @@ func InitCronJob(log domainLogger.Logger, db *mongo.Database) {
 	viewerCountCache := cache.NewRedisViewerCount(RedisClient)
 	chatCache := cache.NewRedisChat(RedisClient)
 	fileCache := cache.NewFileCache()
+	ffmpegLibrary := util.NewFfmpegLibrary()
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
-	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, LiveStreamService, viewerCountCache, chatCache, fileCache)
+	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, LiveStreamService, viewerCountCache, chatCache, fileCache, ffmpegLibrary)
 	cronJob.AddFunc("@every 10s", func() {
 		log.Info(context.Background(), "Running viewer count cleanup")
 		uuid, err := livestreamRepo.GetOne()

@@ -9,6 +9,7 @@ type LivestreamCreateDTO struct {
 	Visibility  livestream.Visibility `json:"visibility"`
 	Title       string                `json:"title"`
 	Information string                `json:"information"`
+	IsRecord    bool                  `json:"is_record"`
 }
 type LivestreamCreateResponseDTO struct {
 	StreamPushURL string `json:"streamPushURL"`
@@ -29,6 +30,7 @@ type LivestreamGetByOwnerIDResponseDTO struct {
 	StreamPushURL string                `json:"streamPushURL"`
 	BanList       []string              `json:"ban_list"`
 	MuteList      []string              `json:"mute_list"`
+	IsRecord      bool                  `json:"is_record"`
 }
 type LivestreamAddChatRequestDTO struct {
 	StreamUUID string `json:"stream_uuid"`

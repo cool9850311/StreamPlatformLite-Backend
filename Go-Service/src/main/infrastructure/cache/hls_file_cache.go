@@ -1,7 +1,9 @@
 package cache
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -13,6 +15,23 @@ func NewFileCache() *FileCache {
 	return &FileCache{
 		cache: sync.Map{},
 	}
+}
+
+func (fc *FileCache) GetSingleFileName(filePath string) (string, error) {
+
+	// Find all matching files
+	matches, err := filepath.Glob(filePath)
+	if err != nil {
+		return "", err
+	}
+
+	// Check if we found any matches
+	if len(matches) == 0 {
+		return "", errors.New("no matching files found")
+	}
+
+	// Return the first match
+	return matches[0], nil
 }
 
 func (fc *FileCache) ReadFile(filePath string) ([]byte, error) {

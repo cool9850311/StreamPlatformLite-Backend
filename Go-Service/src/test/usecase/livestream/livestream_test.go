@@ -24,6 +24,7 @@ type LivestreamTestSetup struct {
 	MockViewerCountCache *mock_data.MockViewerCountCache
 	MockChatCache        *mock_data.MockChatCache
 	MockFileCache        *mock_data.MockFileCache
+	MockFfmpegLibrary    *mock_data.MockFfmpegLibrary
 	UseCase              usecase.LivestreamUsecase
 }
 
@@ -34,6 +35,7 @@ func setupLivestream() *LivestreamTestSetup {
 	mockViewerCountCache := new(mock_data.MockViewerCountCache)
 	mockChatCache := new(mock_data.MockChatCache)
 	mockFileCache := new(mock_data.MockFileCache)
+	mockFfmpegLibrary := new(mock_data.MockFfmpegLibrary)
 	cfg := config.Config{
 		Server: struct {
 			Port         int    `mapstructure:"port"`
@@ -46,7 +48,7 @@ func setupLivestream() *LivestreamTestSetup {
 			HTTPS:  false,
 		},
 	}
-	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache, mockChatCache, mockFileCache)
+	useCase := usecase.NewLivestreamUsecase(mockRepo, mockLogger, cfg, mockStreamService, mockViewerCountCache, mockChatCache, mockFileCache, mockFfmpegLibrary)
 
 	return &LivestreamTestSetup{
 		MockRepo:             mockRepo,
@@ -54,6 +56,7 @@ func setupLivestream() *LivestreamTestSetup {
 		MockViewerCountCache: mockViewerCountCache,
 		MockChatCache:        mockChatCache,
 		MockFileCache:        mockFileCache,
+		MockFfmpegLibrary:    mockFfmpegLibrary,
 		UseCase:              *useCase, // Return the pointer directly
 	}
 }
@@ -227,18 +230,17 @@ func TestLivestreamUsecase_GetOne_UserRole(t *testing.T) {
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
-		UUID:           "livestream123",
-		Name:           "Test Livestream",
-		Title:          "Test Title",
-		Information:    "Test Information",
-		OutputPathUUID: "output123",
+		UUID:        "livestream123",
+		Name:        "Test Livestream",
+		Title:       "Test Title",
+		Information: "Test Information",
 	}
 
 	setup.MockRepo.On("GetOne").Return(testLivestream, nil)
 
 	result, err := setup.UseCase.GetOne(ctx, role.User)
 
-	expectedURL := "http://localhost:8080/livestream/output123/playlist.m3u8"
+	expectedURL := "http://localhost:8080/livestream/livestream123/playlist.m3u8"
 	assert.NoError(t, err)
 	assert.Equal(t, testLivestream.UUID, result.UUID)
 	assert.Equal(t, testLivestream.Name, result.Name)
@@ -376,4 +378,65 @@ func TestLivestreamUsecase_MuteUser_UnauthorizedUser(t *testing.T) {
 	err := setup.UseCase.MuteUser(ctx, "identityProvider", role.User, "livestream123", "user123")
 
 	assert.Error(t, err)
+}
+
+func TestLivestreamUsecase_GetFile_NotFound(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	// Test for record.m3u8
+	file, err := setup.UseCase.GetFile(ctx, "record.m3u8", role.User)
+	assert.Nil(t, file)
+	assert.Equal(t, errors.ErrNotFound, err)
+
+	// Test for *.mp4
+	file, err = setup.UseCase.GetFile(ctx, "output.mp4", role.User)
+	assert.Nil(t, file)
+	assert.Equal(t, errors.ErrNotFound, err)
+
+}
+
+func TestLivestreamUsecase_GetFile_UnauthorizedUser(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	// Test with an unauthorized file extension
+	file, err := setup.UseCase.GetFile(ctx, "playlist.m3u8", role.Guest)
+	assert.Nil(t, file)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+
+}
+
+func TestLivestreamUsecase_GetRecord_AdminUser(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+	setup.MockFileCache.On("GetSingleFileName", "*.mp4").Return("output.mp4", nil)
+	setup.MockFileCache.On("ReadFile", "output.mp4").Return([]byte("test"), nil)
+
+	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Admin)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+func TestLivestreamUsecase_GetRecord_AdminUser_NotMp4(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.m3u8", role.Admin)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrNotFound, err)
+	assert.Nil(t, result)
+}
+
+func TestLivestreamUsecase_GetRecord_UnauthorizedUser(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Guest)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+	assert.Nil(t, result)
 }

@@ -57,5 +57,9 @@ services:
       REDIS_URI: redis:6379
       HTTPS: "false"
       ENABLE_GIN_LOG: "false"
+    volumes:
+      - hls-data:/app/hls
+
 volumes:
   mongo-data:
+  hls-data:
