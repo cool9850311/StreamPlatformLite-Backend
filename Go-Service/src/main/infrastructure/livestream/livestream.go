@@ -23,11 +23,11 @@ type LivestreamService struct {
 	streams  map[string]*livestream
 }
 type livestream struct {
-	name           string
-	uuid           string
-	conn           net.Conn
-	apiKey         string
-	outputPathUUID string
+	name     string
+	uuid     string
+	conn     net.Conn
+	apiKey   string
+	isRecord bool
 }
 
 func NewLivestreamService(logger logger.Logger) *LivestreamService {
@@ -81,12 +81,16 @@ func (l *LivestreamService) handleTcpConnect(conn net.Conn) error {
 					l.logger.Error(context.TODO(), "Failed to get project root path: "+err.Error())
 					return
 				}
-				outputPath := rootPath + "/hls/" + stream.outputPathUUID
+				outputPath := rootPath + "/hls/" + stream.uuid
+				cleanupMode := 2
+				if stream.isRecord {
+					cleanupMode = 0
+				}
 				hlsMuxerConfig := hls.MuxerConfig{
 					OutPath:            outputPath,
 					FragmentDurationMs: 500,
 					FragmentNum:        5,
-					CleanupMode:        2,
+					CleanupMode:        cleanupMode,
 				}
 				hlsMuxer := hls.NewMuxer(stream.name, &hlsMuxerConfig, nil)
 				hlsMuxer.Start()
@@ -130,13 +134,13 @@ func (l *LivestreamService) IsLiveStreamExist(uuid string) bool {
 	return exists
 }
 
-func (l *LivestreamService) OpenStream(name, uuid, apiKey string, outputPathUUID string) error {
+func (l *LivestreamService) OpenStream(name, uuid, apiKey string, isRecord bool) error {
 	// Create a new livestream instance
 	newStream := &livestream{
-		name:           name,
-		uuid:           uuid,
-		apiKey:         apiKey,
-		outputPathUUID: outputPathUUID,
+		name:     name,
+		uuid:     uuid,
+		apiKey:   apiKey,
+		isRecord: isRecord,
 	}
 
 	l.streams[uuid] = newStream
@@ -155,7 +159,7 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 			if stream.conn != nil {
 				stream.conn.Close()
 			}
-			hlsDir := filepath.Join(rootPath, "hls", stream.outputPathUUID)
+			hlsDir := filepath.Join(rootPath, "hls", stream.uuid)
 			err = os.RemoveAll(hlsDir)
 
 			if err != nil {
@@ -169,16 +173,4 @@ func (l *LivestreamService) CloseStream(uuid string) error {
 		l.logger.Warn(context.TODO(), "No livestream found with uuid: "+uuid)
 	}
 	return nil
-}
-
-func (l *LivestreamService) UpdateStreamOutPutPathUUID(uuid, outputPathUUID string) error {
-	if stream, exists := l.streams[uuid]; exists {
-		if stream.conn != nil {
-			stream.conn.Close()
-		}
-		stream.outputPathUUID = outputPathUUID
-		l.streams[uuid] = stream
-		return nil
-	}
-	return errors.ErrNotFound
 }

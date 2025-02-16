@@ -8,6 +8,11 @@ type MockFileCache struct {
 	mock.Mock
 }
 
+func (m *MockFileCache) GetSingleFileName(filePath string) (string, error) {
+	args := m.Called(filePath)
+	return args.Get(0).(string), args.Error(1)
+}
+
 func (m *MockFileCache) ReadFile(filePath string) ([]byte, error) {
 	args := m.Called(filePath)
 	return args.Get(0).([]byte), args.Error(1)

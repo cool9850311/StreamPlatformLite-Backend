@@ -1,6 +1,6 @@
 # Use the official Golang image as the base image
 FROM golang:1.22-alpine
-
+RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 
