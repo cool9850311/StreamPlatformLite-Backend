@@ -7,7 +7,7 @@
 - Go 1.22 or higher
 - Docker
 - Docker Compose
-
+- FFmpeg
 ### Setup
 
 1. Clone the repository:
@@ -34,7 +34,6 @@
     go build -o bin/streamplatformlite-backend Go-Service/src/main.go
     ./bin/streamplatformlite-backend
     ```
-
 ### Running Tests
 
 1. Run the tests:
@@ -55,3 +54,4 @@
 </a>
 
 Made with [contrib.rocks](https://contrib.rocks).
+
