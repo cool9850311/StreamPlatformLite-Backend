@@ -7,9 +7,9 @@ type DiscordUserDTO struct {
 	AccentColor          *int                         `json:"accent_color"`
 	Avatar               string                       `json:"avatar"`
 	AvatarDecorationData *DiscordAvatarDecorationData `json:"avatar_decoration_data"`
-	Banner               string                       `json:"banner"`
+	Banner               *string                      `json:"banner"`
 	BannerColor          *string                      `json:"banner_color"`
-	Clan                 *string                      `json:"clan"`
+	Clan                 *DiscordClan                 `json:"clan"`
 	Discriminator        string                       `json:"discriminator"`
 	Flags                int                          `json:"flags"`
 	GlobalName           string                       `json:"global_name"`
@@ -17,6 +17,9 @@ type DiscordUserDTO struct {
 	PublicFlags          int                          `json:"public_flags"`
 	Username             string                       `json:"username"`
 	Email                *string                      `json:"email"`
+	DisplayNameStyles    interface{}                  `json:"display_name_styles"`
+	Collectibles         interface{}                  `json:"collectibles"`
+	PrimaryGuild         *DiscordClan                 `json:"primary_guild"`
 }
 
 // GuildMemberDTO represents a guild member.
@@ -39,4 +42,11 @@ type DiscordGuildMemberDTO struct {
 type DiscordAvatarDecorationData struct {
 	Asset string `json:"asset"`
 	SkuID string `json:"sku_id"`
+}
+
+type DiscordClan struct {
+	IdentityGuildID string `json:"identity_guild_id"`
+	IdentityEnabled bool   `json:"identity_enabled"`
+	Tag             string `json:"tag"`
+	Badge           string `json:"badge"`
 }

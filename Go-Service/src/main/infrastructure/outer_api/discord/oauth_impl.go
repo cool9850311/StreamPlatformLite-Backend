@@ -82,8 +82,70 @@ func (d *DiscordOAuthImpl) GetGuildMemberData(ctx context.Context, accessToken s
 
 	var guildMemberData dto.DiscordGuildMemberDTO
 	if err := json.Unmarshal(body, &guildMemberData); err != nil {
-		return nil, err
+		// If JSON unmarshaling fails, try to extract essential fields manually
+		// This makes the system more resilient to Discord API changes
+		var rawData map[string]interface{}
+		if unmarshalErr := json.Unmarshal(body, &rawData); unmarshalErr != nil {
+			return nil, errors.New("failed to parse guild member data: " + err.Error() + " | raw response: " + string(body))
+		}
+
+		// Extract essential fields that we need for the application to work
+		guildMemberData = dto.DiscordGuildMemberDTO{}
+
+		// Extract basic user data
+		if user, ok := rawData["user"].(map[string]interface{}); ok {
+			guildMemberData.User = dto.DiscordUserDTO{
+				ID:         getStringFromInterface(user["id"]),
+				Username:   getStringFromInterface(user["username"]),
+				Avatar:     getStringFromInterface(user["avatar"]),
+				GlobalName: getStringFromInterface(user["global_name"]),
+			}
+		}
+
+		// Extract roles
+		if roles, ok := rawData["roles"].([]interface{}); ok {
+			guildMemberData.Roles = make([]string, len(roles))
+			for i, role := range roles {
+				guildMemberData.Roles[i] = getStringFromInterface(role)
+			}
+		}
+
+		// Extract other essential fields
+		guildMemberData.Pending = getBoolFromInterface(rawData["pending"])
+		guildMemberData.Mute = getBoolFromInterface(rawData["mute"])
+		guildMemberData.Deaf = getBoolFromInterface(rawData["deaf"])
+
+		// For non-essential fields, use safe extraction
+		if nick, ok := rawData["nick"]; ok && nick != nil {
+			nickStr := getStringFromInterface(nick)
+			guildMemberData.Nick = &nickStr
+		}
+
+		if bio, ok := rawData["bio"]; ok {
+			guildMemberData.Bio = getStringFromInterface(bio)
+		}
 	}
 
 	return &guildMemberData, nil
+}
+
+// Helper functions for safe type conversion
+func getStringFromInterface(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+	if str, ok := v.(string); ok {
+		return str
+	}
+	return ""
+}
+
+func getBoolFromInterface(v interface{}) bool {
+	if v == nil {
+		return false
+	}
+	if b, ok := v.(bool); ok {
+		return b
+	}
+	return false
 }
