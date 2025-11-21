@@ -22,6 +22,14 @@ func NewMongoSystemSettingRepository(db *mongo.Database) repository.SystemSettin
 func (r *MongoSystemSettingRepository) GetSetting() (*system.Setting, error) {
 	var setting system.Setting
 	err := r.collection.FindOne(context.Background(), bson.M{}).Decode(&setting)
+	if err == mongo.ErrNoDocuments {
+		// Return default settings if not found
+		defaultSetting := &system.Setting{
+			EditorRoleId:        "",
+			StreamAccessRoleIds: []string{},
+		}
+		return defaultSetting, nil
+	}
 	return &setting, err
 }
 

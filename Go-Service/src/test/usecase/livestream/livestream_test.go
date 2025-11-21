@@ -411,12 +411,11 @@ func TestLivestreamUsecase_GetRecord_AdminUser(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 	setup.MockFileCache.On("GetSingleFileName", "*.mp4").Return("output.mp4", nil)
-	setup.MockFileCache.On("ReadFile", "output.mp4").Return([]byte("test"), nil)
 
 	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Admin)
 
 	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	assert.Equal(t, "output.mp4", result)
 	setup.MockFileCache.AssertExpectations(t)
 }
 
@@ -428,7 +427,7 @@ func TestLivestreamUsecase_GetRecord_AdminUser_NotMp4(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrNotFound, err)
-	assert.Nil(t, result)
+	assert.Empty(t, result)
 }
 
 func TestLivestreamUsecase_GetRecord_UnauthorizedUser(t *testing.T) {
@@ -438,5 +437,5 @@ func TestLivestreamUsecase_GetRecord_UnauthorizedUser(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrUnauthorized, err)
-	assert.Nil(t, result)
+	assert.Empty(t, result)
 }

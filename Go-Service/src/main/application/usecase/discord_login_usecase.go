@@ -32,13 +32,13 @@ func NewDiscordLoginUseCase(systemSettingRepo repository.SystemSettingRepository
 	}
 }
 
-func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, error) {
+func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (token string, redirectURL string, err error) {
 
 	var clientRedirectURL string
 	if u.config.Server.HTTPS {
-		clientRedirectURL = fmt.Sprintf("https://%s", u.config.Frontend.Domain)
+		clientRedirectURL = fmt.Sprintf("https://%s/stream", u.config.Frontend.Domain)
 	} else {
-		clientRedirectURL = fmt.Sprintf("http://%s:%s", u.config.Frontend.Domain, strconv.Itoa(u.config.Frontend.Port))
+		clientRedirectURL = fmt.Sprintf("http://%s:%s/stream", u.config.Frontend.Domain, strconv.Itoa(u.config.Frontend.Port))
 	}
 	if u.config.Discord.ClientID == "" ||
 		u.config.Discord.ClientSecret == "" ||
@@ -47,11 +47,11 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 		u.config.Discord.AdminID == "" ||
 		u.config.Discord.GuildID == "" {
 		u.Log.Error(ctx, "Incomplete Discord configuration")
-		return clientRedirectURL, errors.ErrInternal
+		return "", clientRedirectURL, errors.ErrInternal
 	}
 	if code == "" {
 		u.Log.Error(ctx, "Authorization code not found")
-		return clientRedirectURL, errors.ErrInvalidInput
+		return "", clientRedirectURL, errors.ErrInvalidInput
 	}
 	var scheme string
 	var redirectURI string
@@ -65,12 +65,12 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 	accessToken, err := u.discordOAuth.GetAccessToken(ctx, u.config.Discord.ClientID, u.config.Discord.ClientSecret, code, redirectURI)
 	if err != nil {
 		u.Log.Error(ctx, "Error getting access token: "+err.Error())
-		return clientRedirectURL, errors.ErrInternal
+		return "", clientRedirectURL, errors.ErrInternal
 	}
 	discordGuildMemberData, err := u.discordOAuth.GetGuildMemberData(ctx, accessToken, u.config.Discord.GuildID)
 	if err != nil {
 		u.Log.Error(ctx, "Error getting user discord id: "+err.Error())
-		return clientRedirectURL, errors.ErrInternal
+		return "", clientRedirectURL, errors.ErrInternal
 	}
 	discordId := discordGuildMemberData.User.ID
 	userDiscordRoles := discordGuildMemberData.Roles
@@ -79,39 +79,39 @@ func (u *DiscordLoginUseCase) Login(ctx context.Context, code string) (string, e
 	if discordId == u.config.Discord.AdminID {
 		token, err := u.generateToken(ctx, discordId, discordGuildMemberData, role.Admin)
 		if err != nil {
-			return clientRedirectURL, err
+			return "", clientRedirectURL, err
 		}
-		return u.generateRedirectURL(token)
+		return token, clientRedirectURL, nil
 	}
 
 	setting, err := u.systemSettingRepo.GetSetting()
 	if err != nil {
 		u.Log.Error(ctx, "Error getting system setting: "+err.Error())
-		return clientRedirectURL, errors.ErrInternal
+		return "", clientRedirectURL, errors.ErrInternal
 	}
 
 	// Check for editor role
 	if contains(userDiscordRoles, setting.EditorRoleId) {
 		token, err := u.generateToken(ctx, discordId, discordGuildMemberData, role.Editor)
 		if err != nil {
-			return clientRedirectURL, err
+			return "", clientRedirectURL, err
 		}
-		return u.generateRedirectURL(token)
+		return token, clientRedirectURL, nil
 	}
 
 	// Check for stream access roles
 	if hasIntersection(userDiscordRoles, setting.StreamAccessRoleIds) {
 		token, err := u.generateToken(ctx, discordId, discordGuildMemberData, role.User)
 		if err != nil {
-			return clientRedirectURL, err
+			return "", clientRedirectURL, err
 		}
-		return u.generateRedirectURL(token)
+		return token, clientRedirectURL, nil
 	}
-	token, err := u.generateToken(ctx, discordId, discordGuildMemberData, role.Guest)
+	token, err = u.generateToken(ctx, discordId, discordGuildMemberData, role.Guest)
 	if err != nil {
-		return clientRedirectURL, err
+		return "", clientRedirectURL, err
 	}
-	return u.generateRedirectURL(token)
+	return token, clientRedirectURL, nil
 
 }
 
@@ -127,9 +127,9 @@ func (u *DiscordLoginUseCase) generateToken(ctx context.Context, discordId strin
 func (u *DiscordLoginUseCase) generateRedirectURL(token string) (string, error) {
 	var redirectURL string
 	if u.config.Server.HTTPS {
-		redirectURL = fmt.Sprintf("https://%s?token=%s", u.config.Frontend.Domain, token)
+		redirectURL = fmt.Sprintf("https://%s", u.config.Frontend.Domain)
 	} else {
-		redirectURL = fmt.Sprintf("http://%s:%s?token=%s", u.config.Frontend.Domain, strconv.Itoa(u.config.Frontend.Port), token)
+		redirectURL = fmt.Sprintf("http://%s:%s", u.config.Frontend.Domain, strconv.Itoa(u.config.Frontend.Port))
 	}
 	return redirectURL, nil
 }

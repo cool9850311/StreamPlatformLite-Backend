@@ -2,6 +2,7 @@ package repository
 
 import (
 	"Go-Service/src/main/application/interface/repository"
+	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"context"
 
@@ -34,6 +35,9 @@ func (r *MongoLivestreamRepository) GetByOwnerID(ownerID string) (*livestream.Li
 func (r *MongoLivestreamRepository) GetOne() (*livestream.Livestream, error) {
 	var ls livestream.Livestream
 	err := r.collection.FindOne(context.Background(), bson.M{}).Decode(&ls)
+	if err == mongo.ErrNoDocuments {
+		return nil, errors.ErrNotFound
+	}
 	return &ls, err
 }
 

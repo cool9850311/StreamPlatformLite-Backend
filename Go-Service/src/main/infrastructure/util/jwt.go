@@ -4,8 +4,9 @@ import (
 	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/domain/entity/role"
 	"context"
-	"github.com/dgrijalva/jwt-go"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type JWTLibrary struct{}
@@ -21,8 +22,8 @@ func (j *JWTLibrary) GenerateDiscordToken(ctx context.Context, discordId string,
 		UserName:         guildMemberData.User.GlobalName,
 		Role:             userRole,
 		IdentityProvider: "Discord",
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Token expires in 1 day
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)), // Token expires in 1 day
 		},
 	})
 	tokenString, err := token.SignedString([]byte(secretKey))
@@ -37,8 +38,8 @@ func (j *JWTLibrary) GenerateOriginToken(ctx context.Context, userID string, use
 		UserName:         username,
 		IdentityProvider: "Origin",
 		Role:             userRole,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(time.Hour * 24).Unix(), // Token expires in 1 day
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour * 24)), // Token expires in 1 day
 		},
 	})
 	tokenString, err := token.SignedString([]byte(secretKey))

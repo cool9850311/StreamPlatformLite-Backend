@@ -62,6 +62,10 @@ func (c *LivestreamController) GetLivestreamOne(ctx *gin.Context) {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
 			return
 		}
+		if err == errors.ErrNotFound {
+			ctx.JSON(http.StatusNotFound, gin.H{"message": message.MsgNotFound})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
