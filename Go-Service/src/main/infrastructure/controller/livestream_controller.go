@@ -253,11 +253,13 @@ func (c *LivestreamController) GetRecord(ctx *gin.Context) {
 	ctx.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
 	filename := filepath.Base(file.Name())
 	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", util.EncodeRFC5987(filename)))
-	ctx.Header("Access-Control-Expose-Headers", "Content-Length, Content-Disposition, Cache-Control")
 
 	_, err = io.Copy(ctx.Writer, file)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		// Cannot send JSON response after headers are sent and streaming has started
+		// Just log the error and abort the connection
+		c.Log.Error(ctx, "Error streaming file: "+err.Error())
+		ctx.Abort()
 		return
 	}
 }
