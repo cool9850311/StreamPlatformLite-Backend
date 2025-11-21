@@ -244,3 +244,19 @@ func TestOriginAccountUseCase_CreateAccount_AdminRoleNotAllowed(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "admin role cannot be assigned to a user", err.Error())
 }
+
+func TestOriginAccountUseCase_Login_AdminRoleNotAllowed(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	// Mock an account with Admin role (e.g., created directly in DB)
+	mockAccount := &account.Account{ID: "adminuser", Username: "adminuser", Password: "hashedpassword", Role: role.Admin}
+	setup.MockRepo.On("GetByUsername", "adminuser").Return(mockAccount, nil)
+
+	token, err := setup.UseCase.Login(ctx, "adminuser", "password")
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+	assert.Empty(t, token)
+	setup.MockRepo.AssertExpectations(t)
+}

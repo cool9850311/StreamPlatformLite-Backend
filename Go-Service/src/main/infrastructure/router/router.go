@@ -82,6 +82,8 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 		login.GET("/oauth/discord", discordOauthController.Callback)
 		login.POST("/logout", discordOauthController.Logout)
 	}
+	r.GET("/me", middleware.JWTAuthMiddleware(log), originAccountController.GetMe)
+
 	originAccount := r.Group("/origin-account")
 	{
 		originAccount.POST("/login", originAccountController.Login)
