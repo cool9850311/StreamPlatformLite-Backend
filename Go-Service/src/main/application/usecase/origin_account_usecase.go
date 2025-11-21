@@ -42,6 +42,12 @@ func (uc *OriginAccountUseCase) Login(ctx context.Context, username, password st
 		return "", innerErrors.ErrPassword
 	}
 
+	// Origin accounts cannot have Admin role
+	if acc.Role == role.Admin {
+		uc.log.Error(ctx, "Login failed: Admin role is not allowed for origin accounts")
+		return "", innerErrors.ErrUnauthorized
+	}
+
 	if !uc.bcrypt.CheckPasswordHash(password, acc.Password) {
 		uc.log.Error(ctx, "Login failed CheckPasswordHash: ")
 		return "", innerErrors.ErrPassword

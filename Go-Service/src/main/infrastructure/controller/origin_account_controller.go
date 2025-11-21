@@ -137,6 +137,17 @@ func (c *OriginAccountController) DeleteAccount(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"message": message.MsgOK})
 }
 
+func (c *OriginAccountController) GetMe(ctx *gin.Context) {
+	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	ctx.JSON(http.StatusOK, gin.H{
+		"user_id":           claims.UserID,
+		"username":          claims.UserName,
+		"role":              claims.Role,
+		"identity_provider": claims.IdentityProvider,
+		"avatar":            claims.Avatar,
+	})
+}
+
 func (c *OriginAccountController) ChangePassword(ctx *gin.Context) {
 	var changePasswordRequest struct {
 		OldPassword string `json:"old_password"`
