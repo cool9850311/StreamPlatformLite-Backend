@@ -3,14 +3,14 @@ package dto
 import (
 	"Go-Service/src/main/domain/entity/role"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type Claims struct {
-	UserID           string
-	Avatar           string
-	UserName         string
-	Role             role.Role
-	IdentityProvider string
-	jwt.StandardClaims
+	UserID           string    `json:"user_id"`
+	Avatar           string    `json:"avatar"`
+	UserName         string    `json:"username"`
+	Role             role.Role `json:"role"`
+	IdentityProvider string    `json:"identity_provider"`
+	jwt.RegisteredClaims
 }

@@ -77,9 +77,10 @@ func TestDiscordLoginUseCase_AdminUser(t *testing.T) {
 		Roles: []string{},
 	}, nil)
 	mockJWTGenerator.On("GenerateDiscordToken", ctx, "admin123", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Admin, "fakeJWTSecret").Return("jwtToken", nil)
-	result, err := useCase.Login(ctx, "adminCode")
+	token, redirectURL, err := useCase.Login(ctx, "adminCode")
 
-	assert.Contains(t, result, "token=")
+	assert.NotEmpty(t, token)
+	assert.Equal(t, "http://fakeFrontendDomain:3000/stream", redirectURL)
 	assert.NoError(t, err)
 }
 
@@ -98,9 +99,10 @@ func TestDiscordLoginUseCase_EditorRole(t *testing.T) {
 		Roles: []string{"editor123"},
 	}, nil)
 	mockJWTGenerator.On("GenerateDiscordToken", ctx, "fakeEditorID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Editor, "fakeJWTSecret").Return("jwtToken", nil)
-	result, err := useCase.Login(ctx, "editorCode")
+	token, redirectURL, err := useCase.Login(ctx, "editorCode")
 
-	assert.Contains(t, result, "token=")
+	assert.NotEmpty(t, token)
+	assert.Equal(t, "http://fakeFrontendDomain:3000/stream", redirectURL)
 	assert.NoError(t, err)
 }
 
@@ -119,9 +121,10 @@ func TestDiscordLoginUseCase_UserRoleWithStreamAccess(t *testing.T) {
 		Roles: []string{"user123"},
 	}, nil)
 	mockJWTGenerator.On("GenerateDiscordToken", ctx, "fakeUserID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.User, "fakeJWTSecret").Return("jwtToken", nil)
-	result, err := useCase.Login(ctx, "userCode")
+	token, redirectURL, err := useCase.Login(ctx, "userCode")
 
-	assert.Contains(t, result, "token=")
+	assert.NotEmpty(t, token)
+	assert.Equal(t, "http://fakeFrontendDomain:3000/stream", redirectURL)
 	assert.NoError(t, err)
 }
 
@@ -140,9 +143,10 @@ func TestDiscordLoginUseCase_GuestRole(t *testing.T) {
 		Roles: []string{},
 	}, nil)
 	mockJWTGenerator.On("GenerateDiscordToken", ctx, "fakeGuestID", mock.AnythingOfType("*dto.DiscordGuildMemberDTO"), role.Guest, "fakeJWTSecret").Return("jwtToken", nil)
-	result, err := useCase.Login(ctx, "guestCode")
+	token, redirectURL, err := useCase.Login(ctx, "guestCode")
 
-	assert.Contains(t, result, "token=")
+	assert.NotEmpty(t, token)
+	assert.Equal(t, "http://fakeFrontendDomain:3000/stream", redirectURL)
 	assert.NoError(t, err)
 }
 
@@ -157,9 +161,10 @@ func TestDiscordLoginUseCase_SystemSettingRetrievalError(t *testing.T) {
 		Roles: []string{},
 	}, nil)
 
-	result, err := useCase.Login(ctx, "errorCode")
+	token, redirectURL, err := useCase.Login(ctx, "errorCode")
 
-	assert.Equal(t, "http://fakeFrontendDomain:3000", result)
+	assert.Empty(t, token)
+	assert.Equal(t, "http://fakeFrontendDomain:3000/stream", redirectURL)
 	assert.Error(t, err)
 	mockRepo.AssertExpectations(t)
 }

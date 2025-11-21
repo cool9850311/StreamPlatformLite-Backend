@@ -12,6 +12,9 @@ import (
 	"Go-Service/src/main/infrastructure/outer_api/discord"
 	"Go-Service/src/main/infrastructure/repository"
 	"Go-Service/src/main/infrastructure/util"
+	"fmt"
+
+	// "github.com/gin-contrib/cors"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -35,24 +38,20 @@ func setupRouter() *gin.Engine {
 }
 
 func setupMiddlewares(r *gin.Engine) {
+	// Dynamic CORS configuration based on environment
+	var allowedOrigins []string
+	if config.AppConfig.Server.HTTPS {
+		allowedOrigins = append(allowedOrigins, fmt.Sprintf("https://%s", config.AppConfig.Frontend.Domain))
+	} else {
+		allowedOrigins = append(allowedOrigins, fmt.Sprintf("http://%s:%d", config.AppConfig.Frontend.Domain, config.AppConfig.Frontend.Port))
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowAllOrigins:  true,
+		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 	}))
-
-	r.Use(func(c *gin.Context) {
-		if c.Request.Method == "OPTIONS" {
-			c.Header("Access-Control-Allow-Origin", "*")
-			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-			c.Header("Access-Control-Allow-Credentials", "true")
-			c.Status(200)
-			return
-		}
-		c.Next()
-	})
 
 	r.Use(middleware.TraceIDMiddleware())
 }
@@ -81,6 +80,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	login := r.Group("/")
 	{
 		login.GET("/oauth/discord", discordOauthController.Callback)
+		login.POST("/logout", discordOauthController.Logout)
 	}
 	originAccount := r.Group("/origin-account")
 	{

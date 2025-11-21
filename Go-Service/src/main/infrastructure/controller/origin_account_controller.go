@@ -6,9 +6,12 @@ import (
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/main/domain/interface/logger"
+	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/message"
-	"github.com/gin-gonic/gin"
+	"fmt"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type OriginAccountController struct {
@@ -46,7 +49,33 @@ func (c *OriginAccountController) Login(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	ctx.JSON(http.StatusOK, gin.H{"token": token})
+
+	// Set HttpOnly cookie with token
+	// For localhost, use empty domain string (browsers handle this better)
+	domain := ""
+	if config.AppConfig.Server.HTTPS {
+		domain = config.AppConfig.Frontend.Domain
+	}
+
+	sameSite := "Lax"
+	if config.AppConfig.Server.HTTPS {
+		sameSite = "Strict"
+	}
+
+	secure := ""
+	if config.AppConfig.Server.HTTPS {
+		secure = "; Secure"
+	}
+
+	// Workaround: Gin has a bug where SetCookie doesn't work properly
+	// Use manual Set-Cookie header instead
+	cookieValue := fmt.Sprintf("token=%s; Path=/; Max-Age=86400; HttpOnly; SameSite=%s%s", token, sameSite, secure)
+	if domain != "" {
+		cookieValue = fmt.Sprintf("token=%s; Path=/; Domain=%s; Max-Age=86400; HttpOnly; SameSite=%s%s", token, domain, sameSite, secure)
+	}
+
+	ctx.Header("Set-Cookie", cookieValue)
+	ctx.JSON(http.StatusOK, gin.H{"message": "Login successful"})
 
 }
 func (c *OriginAccountController) CreateAccount(ctx *gin.Context) {

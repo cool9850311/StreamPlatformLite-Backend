@@ -8,23 +8,30 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
-
-// Claims defines the structure of JWT claims
 
 // JWTAuthMiddleware handles JWT authentication and authorization
 func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tokenString := c.GetHeader("Authorization")
-		if tokenString == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"message": "Missing token"})
-			c.Abort()
-			return
+		var tokenString string
+
+		// Try to get token from Cookie first (preferred method)
+		cookie, err := c.Cookie("token")
+		if err == nil && cookie != "" {
+			tokenString = cookie
+		} else {
+			// Fallback to Authorization header for backward compatibility
+			tokenString = c.GetHeader("Authorization")
+			if tokenString == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"message": "Missing token"})
+				c.Abort()
+				return
+			}
+			tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 		}
 
-		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
 		claims := &dto.Claims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte(config.AppConfig.JWT.SecretKey), nil
