@@ -50,7 +50,7 @@ func setupMiddlewares(r *gin.Engine) {
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Cache-Control"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Cache-Control", "Content-Type"},
 		AllowCredentials: true,
 	}))
 
