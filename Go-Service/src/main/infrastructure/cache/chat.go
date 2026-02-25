@@ -4,6 +4,7 @@ import (
 	"Go-Service/src/main/application/interface/cache"
 	"Go-Service/src/main/domain/entity/chat"
 	"context"
+	"strconv"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -47,12 +48,14 @@ func (r *RedisChat) GetChat(livestreamUUID string, index string, count int) ([]c
 
 	chats := make([]chat.Chat, 0, len(streams))
 	for _, stream := range streams {
+		roleInt, _ := strconv.Atoi(stream.Values["role"].(string))
 		chats = append(chats, chat.Chat{
 			ID:       stream.ID,
 			UserID:   stream.Values["user_id"].(string),
 			Avatar:   stream.Values["avatar"].(string),
 			Username: stream.Values["username"].(string),
 			Message:  stream.Values["message"].(string),
+			Role:     roleInt,
 		})
 	}
 
@@ -71,6 +74,7 @@ func (r *RedisChat) AddChat(livestreamUUID string, chat chat.Chat) error {
 			"avatar":   chat.Avatar,
 			"username": chat.Username,
 			"message":  chat.Message,
+			"role":     chat.Role,
 		},
 	}).Result()
 
@@ -121,12 +125,14 @@ func (r *RedisChat) GetChatByID(livestreamUUID string, chatID string) (*chat.Cha
 	}
 
 	message := messages[0]
+	roleInt, _ := strconv.Atoi(message.Values["role"].(string))
 	chatObj := &chat.Chat{
 		ID:       message.ID,
 		UserID:   message.Values["user_id"].(string),
 		Avatar:   message.Values["avatar"].(string),
 		Username: message.Values["username"].(string),
 		Message:  message.Values["message"].(string),
+		Role:     roleInt,
 	}
 	return chatObj, nil
 }

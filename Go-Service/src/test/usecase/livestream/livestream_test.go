@@ -289,8 +289,8 @@ func TestLivestreamUsecase_GetChat_AdminUser(t *testing.T) {
 	ctx := context.Background()
 
 	testChats := []chat.Chat{
-		{UserID: "user1", Message: "Hello", Avatar: "avatar1", Username: "username1"},
-		{UserID: "user2", Message: "Hi", Avatar: "avatar2", Username: "username2"},
+		{UserID: "user1", Message: "Hello", Avatar: "avatar1", Username: "username1", Role: 0},
+		{UserID: "user2", Message: "Hi", Avatar: "avatar2", Username: "username2", Role: 3},
 	}
 
 	setup.MockChatCache.On("GetChat", "livestream123", "0", 10).Return(testChats, nil)
@@ -316,7 +316,7 @@ func TestLivestreamUsecase_AddChat_AdminUser(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	testChat := chat.Chat{UserID: "user123", Message: "Hello", Avatar: "avatar123", Username: "username123"}
+	testChat := chat.Chat{UserID: "user123", Message: "Hello", Avatar: "avatar123", Username: "username123", Role: 0}
 
 	setup.MockRepo.On("GetByID", "livestream123").Return(&livestream.Livestream{}, nil)
 	setup.MockChatCache.On("AddChat", "livestream123", testChat).Return(nil)
@@ -331,7 +331,7 @@ func TestLivestreamUsecase_AddChat_UnauthorizedUser(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	testChat := chat.Chat{UserID: "user123", Message: "Hello"}
+	testChat := chat.Chat{UserID: "user123", Message: "Hello", Role: 4}
 
 	err := setup.UseCase.AddChat(ctx, "identityProvider", role.Guest, "livestream123", testChat)
 
@@ -362,6 +362,7 @@ func TestLivestreamUsecase_DeleteChat_UserDeletesOwnMessage(t *testing.T) {
 		Avatar:   "avatar123",
 		Username: "username123",
 		Message:  "Test message",
+		Role:     3,
 	}
 	setup.MockChatCache.On("GetChatByID", "livestream123", "chat123").Return(&testChat, nil)
 	setup.MockChatCache.On("DeleteChat", "livestream123", "chat123").Return(nil)
@@ -384,6 +385,7 @@ func TestLivestreamUsecase_DeleteChat_UserDeletesOthersMessage(t *testing.T) {
 		Avatar:   "avatar456",
 		Username: "username456",
 		Message:  "Test message",
+		Role:     3,
 	}
 	setup.MockChatCache.On("GetChatByID", "livestream123", "chat123").Return(&testChat, nil)
 
