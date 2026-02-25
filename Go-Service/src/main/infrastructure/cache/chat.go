@@ -105,3 +105,28 @@ func (r *RedisChat) GetDeleteChatIDs(livestreamUUID string) ([]string, error) {
 
 	return result, nil
 }
+
+func (r *RedisChat) GetChatByID(livestreamUUID string, chatID string) (*chat.Chat, error) {
+	ctx := context.Background()
+	key := "chat_" + livestreamUUID
+
+	// Get the specific message from the stream
+	messages, err := r.client.XRange(ctx, key, chatID, chatID).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(messages) == 0 {
+		return nil, redis.Nil
+	}
+
+	message := messages[0]
+	chatObj := &chat.Chat{
+		ID:       message.ID,
+		UserID:   message.Values["user_id"].(string),
+		Avatar:   message.Values["avatar"].(string),
+		Username: message.Values["username"].(string),
+		Message:  message.Values["message"].(string),
+	}
+	return chatObj, nil
+}

@@ -280,16 +280,42 @@ func (u *LivestreamUsecase) AddChat(ctx context.Context, identityProvider string
 	}
 	return nil
 }
-func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, livestreamUUID string, chatID string) error {
-	if err := u.checkEditorRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to DeleteChat")
-		return err
+func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, currentUserID string, livestreamUUID string, chatID string) error {
+	// Editor and Admin can delete any chat
+	if userRole <= role.Editor {
+		err := u.chatCache.DeleteChat(livestreamUUID, chatID)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	err := u.chatCache.DeleteChat(livestreamUUID, chatID)
-	if err != nil {
-		return err
+
+	// User can only delete their own chat
+	if userRole == role.User {
+		// Get the chat to check ownership
+		chat, err := u.chatCache.GetChatByID(livestreamUUID, chatID)
+		if err != nil {
+			u.Log.Error(ctx, "Error getting chat: "+err.Error())
+			return err
+		}
+
+		// Check if the user owns this chat
+		if chat.UserID != currentUserID {
+			u.Log.Error(ctx, "User attempting to delete someone else's chat")
+			return errors.ErrUnauthorized
+		}
+
+		// Delete the chat
+		err = u.chatCache.DeleteChat(livestreamUUID, chatID)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
-	return nil
+
+	// Guest and other roles cannot delete chats
+	u.Log.Error(ctx, "Unauthorized access to DeleteChat")
+	return errors.ErrUnauthorized
 }
 func (u *LivestreamUsecase) GetDeleteChatIDs(ctx context.Context, userRole role.Role, livestreamUUID string) ([]string, error) {
 	if err := u.checkUserRole(userRole); err != nil {
