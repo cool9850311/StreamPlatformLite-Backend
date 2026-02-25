@@ -152,6 +152,7 @@ func (c *LivestreamController) AddChat(ctx *gin.Context) {
 		Avatar:   claims.Avatar,
 		Username: claims.UserName,
 		Message:  chatRequest.Message,
+		Role:     int(claims.Role),
 	}
 	err := c.livestreamUseCase.AddChat(ctx, claims.IdentityProvider, claims.Role, chatRequest.StreamUUID, chat)
 	if err != nil {

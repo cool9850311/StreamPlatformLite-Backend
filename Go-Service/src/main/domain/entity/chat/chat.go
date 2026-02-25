@@ -6,4 +6,5 @@ type Chat struct {
 	Avatar   string `json:"avatar"`
 	Username string `json:"username"`
 	Message  string `json:"message"`
+	Role     int    `json:"role"`
 }
