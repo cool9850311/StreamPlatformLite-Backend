@@ -168,7 +168,7 @@ func (c *LivestreamController) RemoveViewerCount(ctx *gin.Context) {
 	id := ctx.Param("uuid")
 	chatID := ctx.Param("chat_id")
 	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
-	err := c.livestreamUseCase.DeleteChat(ctx, claims.Role, id, chatID)
+	err := c.livestreamUseCase.DeleteChat(ctx, claims.Role, claims.UserID, id, chatID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return

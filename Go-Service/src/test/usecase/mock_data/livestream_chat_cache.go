@@ -29,3 +29,11 @@ func (m *MockChatCache) GetDeleteChatIDs(livestreamUUID string) ([]string, error
 	args := m.Called(livestreamUUID)
 	return args.Get(0).([]string), args.Error(1)
 }
+
+func (m *MockChatCache) GetChatByID(livestreamUUID string, chatID string) (*chat.Chat, error) {
+	args := m.Called(livestreamUUID, chatID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*chat.Chat), args.Error(1)
+}

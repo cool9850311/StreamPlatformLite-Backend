@@ -342,21 +342,81 @@ func TestLivestreamUsecase_DeleteChat_EditorUser(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
+	// Editor can delete any chat message
 	setup.MockChatCache.On("DeleteChat", "livestream123", "chat123").Return(nil)
 
-	err := setup.UseCase.DeleteChat(ctx, role.Editor, "livestream123", "chat123")
+	err := setup.UseCase.DeleteChat(ctx, role.Editor, "user456", "livestream123", "chat123")
 
 	assert.NoError(t, err)
 	setup.MockChatCache.AssertExpectations(t)
 }
 
-func TestLivestreamUsecase_DeleteChat_UnauthorizedUser(t *testing.T) {
+func TestLivestreamUsecase_DeleteChat_UserDeletesOwnMessage(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	err := setup.UseCase.DeleteChat(ctx, role.User, "livestream123", "chat123")
+	// Mock getting the chat to verify ownership
+	testChat := chat.Chat{
+		ID:       "chat123",
+		UserID:   "user123",
+		Avatar:   "avatar123",
+		Username: "username123",
+		Message:  "Test message",
+	}
+	setup.MockChatCache.On("GetChatByID", "livestream123", "chat123").Return(&testChat, nil)
+	setup.MockChatCache.On("DeleteChat", "livestream123", "chat123").Return(nil)
+
+	// User deletes their own message - should succeed
+	err := setup.UseCase.DeleteChat(ctx, role.User, "user123", "livestream123", "chat123")
+
+	assert.NoError(t, err)
+	setup.MockChatCache.AssertExpectations(t)
+}
+
+func TestLivestreamUsecase_DeleteChat_UserDeletesOthersMessage(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	// Mock getting the chat to verify ownership
+	testChat := chat.Chat{
+		ID:       "chat123",
+		UserID:   "user456", // Different user owns this message
+		Avatar:   "avatar456",
+		Username: "username456",
+		Message:  "Test message",
+	}
+	setup.MockChatCache.On("GetChatByID", "livestream123", "chat123").Return(&testChat, nil)
+
+	// User tries to delete someone else's message - should fail
+	err := setup.UseCase.DeleteChat(ctx, role.User, "user123", "livestream123", "chat123")
 
 	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+	setup.MockChatCache.AssertExpectations(t)
+}
+
+func TestLivestreamUsecase_DeleteChat_GuestUser(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	// Guest should not be able to delete any messages
+	err := setup.UseCase.DeleteChat(ctx, role.Guest, "user123", "livestream123", "chat123")
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+}
+
+func TestLivestreamUsecase_DeleteChat_AdminUser(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	// Admin can delete any chat message
+	setup.MockChatCache.On("DeleteChat", "livestream123", "chat123").Return(nil)
+
+	err := setup.UseCase.DeleteChat(ctx, role.Admin, "user456", "livestream123", "chat123")
+
+	assert.NoError(t, err)
+	setup.MockChatCache.AssertExpectations(t)
 }
 
 func TestLivestreamUsecase_MuteUser_EditorUser(t *testing.T) {
