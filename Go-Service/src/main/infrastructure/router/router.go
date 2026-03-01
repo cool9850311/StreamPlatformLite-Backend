@@ -65,7 +65,8 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	discordOAuthOuterApi := discord.NewDiscordOAuthImpl()
 	jwtGenerator := util.NewJWTLibrary()
 	bcrypt := util.NewBcryptLibrary()
-	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator)
+	stateStore := util.NewRedisStateStore(redisClient)
+	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator, stateStore)
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 	livestreamRepo := repository.NewMongoLivestreamRepository(db)
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
@@ -80,6 +81,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 
 	login := r.Group("/")
 	{
+		login.GET("/oauth/discord/init", discordOauthController.InitiateLogin)
 		login.GET("/oauth/discord", discordOauthController.Callback)
 		login.POST("/logout", discordOauthController.Logout)
 	}
