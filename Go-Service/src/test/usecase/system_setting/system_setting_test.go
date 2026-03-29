@@ -39,6 +39,16 @@ func TestSystemSettingUseCase_GetSetting_AdminUser(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
+func TestSystemSettingUseCase_GetSetting_Editor_Unauthorized(t *testing.T) {
+	_, _, useCase := setup()
+	ctx := context.Background()
+
+	result, err := useCase.GetSetting(ctx, role.Editor)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+}
+
 func TestSystemSettingUseCase_GetSetting_UnauthorizedUser(t *testing.T) {
 	mockRepo, _, useCase := setup()
 	ctx := context.Background()
@@ -46,6 +56,26 @@ func TestSystemSettingUseCase_GetSetting_UnauthorizedUser(t *testing.T) {
 	mockRepo.On("GetSetting").Return(nil, errors.New("unauthorized"))
 
 	result, err := useCase.GetSetting(ctx, role.User)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+}
+
+func TestSystemSettingUseCase_GetSetting_Guest_Unauthorized(t *testing.T) {
+	_, _, useCase := setup()
+	ctx := context.Background()
+
+	result, err := useCase.GetSetting(ctx, role.Guest)
+
+	assert.Nil(t, result)
+	assert.Error(t, err)
+}
+
+func TestSystemSettingUseCase_GetSetting_Anonymous_Unauthorized(t *testing.T) {
+	_, _, useCase := setup()
+	ctx := context.Background()
+
+	result, err := useCase.GetSetting(ctx, role.Anonymous)
 
 	assert.Nil(t, result)
 	assert.Error(t, err)
@@ -68,6 +98,20 @@ func TestSystemSettingUseCase_SetSetting_AdminUser(t *testing.T) {
 	mockRepo.AssertExpectations(t)
 }
 
+func TestSystemSettingUseCase_SetSetting_Editor_Unauthorized(t *testing.T) {
+	_, _, useCase := setup()
+	ctx := context.Background()
+
+	testSetting := &system.Setting{
+		EditorRoleId:        "editor123",
+		StreamAccessRoleIds: []string{"user123", "user456"},
+	}
+
+	err := useCase.SetSetting(ctx, testSetting, role.Editor)
+
+	assert.Error(t, err)
+}
+
 func TestSystemSettingUseCase_SetSetting_UnauthorizedUser(t *testing.T) {
 	mockRepo, _, useCase := setup()
 	ctx := context.Background()
@@ -80,6 +124,34 @@ func TestSystemSettingUseCase_SetSetting_UnauthorizedUser(t *testing.T) {
 	mockRepo.On("SetSetting", testSetting).Return(errors.New("unauthorized"))
 
 	err := useCase.SetSetting(ctx, testSetting, role.User)
+
+	assert.Error(t, err)
+}
+
+func TestSystemSettingUseCase_SetSetting_Guest_Unauthorized(t *testing.T) {
+	_, _, useCase := setup()
+	ctx := context.Background()
+
+	testSetting := &system.Setting{
+		EditorRoleId:        "editor123",
+		StreamAccessRoleIds: []string{"user123", "user456"},
+	}
+
+	err := useCase.SetSetting(ctx, testSetting, role.Guest)
+
+	assert.Error(t, err)
+}
+
+func TestSystemSettingUseCase_SetSetting_Anonymous_Unauthorized(t *testing.T) {
+	_, _, useCase := setup()
+	ctx := context.Background()
+
+	testSetting := &system.Setting{
+		EditorRoleId:        "editor123",
+		StreamAccessRoleIds: []string{"user123", "user456"},
+	}
+
+	err := useCase.SetSetting(ctx, testSetting, role.Anonymous)
 
 	assert.Error(t, err)
 }

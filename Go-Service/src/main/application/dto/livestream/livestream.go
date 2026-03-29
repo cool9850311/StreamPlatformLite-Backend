@@ -15,11 +15,12 @@ type LivestreamCreateResponseDTO struct {
 	StreamPushURL string `json:"streamPushURL"`
 }
 type LivestreamGetOneResponseDTO struct {
-	UUID        string `json:"uuid"`
-	Name        string `json:"name"`
-	Title       string `json:"title"`
-	Information string `json:"information"`
-	StreamURL   string `json:"streamURL"`
+	UUID        string                `json:"uuid"`
+	Name        string                `json:"name"`
+	Title       string                `json:"title"`
+	Information string                `json:"information"`
+	StreamURL   string                `json:"streamURL"`
+	Visibility  livestream.Visibility `json:"visibility"`
 }
 type LivestreamGetByOwnerIDResponseDTO struct {
 	UUID          string                `json:"uuid"`
@@ -38,5 +39,5 @@ type LivestreamAddChatRequestDTO struct {
 }
 type LivestreamMuteUserRequestDTO struct {
 	StreamUUID string `json:"stream_uuid"`
-	UserID     string `json:"user_id"`
+	ChatID     string `json:"chat_id"`
 }

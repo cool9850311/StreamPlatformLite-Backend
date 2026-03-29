@@ -16,6 +16,7 @@ import (
 	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -59,16 +60,57 @@ func (u *LivestreamUsecase) checkAdminRole(userRole role.Role) error {
 	return nil
 }
 
-func (u *LivestreamUsecase) checkUserRole(userRole role.Role) error {
-	if userRole > role.User {
-		return errors.ErrUnauthorized
-	}
-	return nil
-}
 func (u *LivestreamUsecase) checkEditorRole(userRole role.Role) error {
 	if userRole > role.Editor {
 		return errors.ErrUnauthorized
 	}
+	return nil
+}
+
+// checkViewAccess 检查用户是否有权限观看直播
+// 根据直播的Visibility和用户角色判断
+func (u *LivestreamUsecase) checkViewAccess(userRole role.Role, visibility livestream.Visibility) error {
+	switch visibility {
+	case livestream.Public:
+		// Public模式：所有人都可以观看（包括Anonymous）
+		return nil
+	case livestream.MemberOnly:
+		// MemberOnly模式：需要User及以上角色（排除Anonymous和Guest）
+		if userRole > role.User {
+			return errors.ErrUnauthorized
+		}
+		return nil
+	case livestream.Private:
+		// Private模式：仅Admin可访问（可扩展为Owner）
+		if userRole != role.Admin {
+			return errors.ErrUnauthorized
+		}
+		return nil
+	case livestream.Link:
+		// Link模式：需要特定token（暂时按User及以上处理）
+		if userRole > role.User {
+			return errors.ErrUnauthorized
+		}
+		return nil
+	default:
+		return errors.ErrUnauthorized
+	}
+}
+
+// checkChatAccess 检查用户是否有权限发送聊天
+// Public直播：Guest及以上可聊天（排除Anonymous）
+// MemberOnly直播：User及以上可聊天（排除Anonymous和Guest）
+func (u *LivestreamUsecase) checkChatAccess(userRole role.Role, visibility livestream.Visibility) error {
+	// 首先检查是否有观看权限（这会自动拦截Guest访问MemberOnly）
+	if err := u.checkViewAccess(userRole, visibility); err != nil {
+		return err
+	}
+
+	// Anonymous用户不能发送聊天
+	if userRole == role.Anonymous {
+		return errors.ErrUnauthorized
+	}
+
 	return nil
 }
 
@@ -120,15 +162,19 @@ func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID 
 	return &livestreamResponse, nil
 }
 func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*livestreamDTO.LivestreamGetOneResponseDTO, error) {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to GetOne")
-		return nil, err
-	}
+	// 先获取直播信息
 	livestream, err := u.LivestreamRepo.GetOne()
 	if err != nil {
 		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
 		return nil, err
 	}
+
+	// 根据Visibility检查访问权限
+	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to GetOne, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
+		return nil, err
+	}
+
 	prefix := "http://"
 	port := ":" + strconv.Itoa(u.config.Server.Port)
 	if u.config.Server.HTTPS {
@@ -142,6 +188,7 @@ func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*li
 		Title:       livestream.Title,
 		Information: livestream.Information,
 		StreamURL:   prefix + u.config.Server.Domain + port + "/livestream/" + livestream.UUID + "/playlist.m3u8",
+		Visibility:  livestream.Visibility, // 新增字段
 	}
 	return &livestreamResponse, nil
 }
@@ -219,12 +266,31 @@ func (u *LivestreamUsecase) DeleteLivestream(ctx context.Context, id string, use
 	}
 	return nil
 }
-func (u *LivestreamUsecase) PingViewerCount(ctx context.Context, userRole role.Role, livestreamUUID string, userID string) (int, error) {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to PingViewerCount")
+func (u *LivestreamUsecase) PingViewerCount(ctx context.Context, userRole role.Role, livestreamUUID string, userID string, anonymousID string) (int, error) {
+	// 获取直播信息以检查Visibility
+	livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
+		return 0, errors.ErrNotFound
+	}
+
+	// 根据Visibility检查访问权限
+	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to PingViewerCount, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
 		return 0, err
 	}
-	err := u.viewerCountCache.AddViewerCount(livestreamUUID, userID)
+
+	// Determine effective user ID
+	effectiveUserID := userID
+	if userRole == role.Anonymous {
+		// Anonymous users must provide anonymousID
+		if strings.TrimSpace(anonymousID) == "" {
+			return 0, errors.ErrInvalidInput
+		}
+		effectiveUserID = anonymousID
+	}
+
+	err = u.viewerCountCache.AddViewerCount(livestreamUUID, effectiveUserID)
 	if err != nil {
 		return 0, err
 	}
@@ -244,10 +310,19 @@ func (u *LivestreamUsecase) RemoveViewerCount(ctx context.Context, livestreamUUI
 	return viewerCount, nil
 }
 func (u *LivestreamUsecase) GetChat(ctx context.Context, userRole role.Role, livestreamUUID string, index string) ([]chat.Chat, error) {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to GetChat")
+	// 获取直播信息以检查Visibility
+	livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
+		return nil, errors.ErrNotFound
+	}
+
+	// 根据Visibility检查访问权限（观看权限即可获取聊天）
+	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to GetChat, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
 		return nil, err
 	}
+
 	chats, err := u.chatCache.GetChat(livestreamUUID, index, 10)
 	if err != nil {
 		return nil, err
@@ -255,24 +330,25 @@ func (u *LivestreamUsecase) GetChat(ctx context.Context, userRole role.Role, liv
 	return chats, nil
 }
 func (u *LivestreamUsecase) AddChat(ctx context.Context, identityProvider string, userRole role.Role, livestreamUUID string, chat chat.Chat) error {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to AddChat")
-		return err
-	}
 	if len(chat.Message) > 100 {
 		return errors.ErrInvalidInput
 	}
+
+	// 获取直播信息以检查Visibility
 	livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting livestream by ID")
+		u.Log.Error(ctx, "Error getting livestream by ID: "+err.Error())
 		return err
 	}
-	if livestream.MuteList != nil {
-		for _, userID := range livestream.MuteList {
-			if userID == identityProvider+"-"+chat.UserID {
-				return errors.ErrMuteUser
-			}
-		}
+
+	// 根据Visibility检查聊天权限
+	if err := u.checkChatAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to AddChat, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
+		return err
+	}
+
+	if livestream.MuteList != nil && slices.Contains(livestream.MuteList, identityProvider+"-"+chat.UserID) {
+		return errors.ErrMuteUser
 	}
 	err = u.chatCache.AddChat(livestreamUUID, chat)
 	if err != nil {
@@ -281,8 +357,39 @@ func (u *LivestreamUsecase) AddChat(ctx context.Context, identityProvider string
 	return nil
 }
 func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, currentUserID string, livestreamUUID string, chatID string) error {
+	// 获取直播信息以检查Visibility
+	livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream by ID: "+err.Error())
+		return err
+	}
+
+	// 根据Visibility检查访问权限（需要有观看权限才能删除聊天）
+	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to DeleteChat, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
+		return err
+	}
+
 	// Editor and Admin can delete any chat
 	if userRole <= role.Editor {
+		// Editor can only delete User (3) and Guest (4) messages (except own messages)
+		if userRole == role.Editor {
+			chat, err := u.chatCache.GetChatByID(livestreamUUID, chatID)
+			if err != nil {
+				u.Log.Error(ctx, "Error getting chat: "+err.Error())
+				return err
+			}
+
+			// Editor can always delete their own messages
+			if chat.UserID != currentUserID {
+				// Editor cannot delete Admin or other Editor's messages
+				if chat.Role <= role.Editor {
+					u.Log.Warn(ctx, "Editor cannot delete Admin or Editor's message")
+					return errors.ErrUnauthorized
+				}
+			}
+		}
+
 		err := u.chatCache.DeleteChat(livestreamUUID, chatID)
 		if err != nil {
 			return err
@@ -290,8 +397,8 @@ func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, 
 		return nil
 	}
 
-	// User can only delete their own chat
-	if userRole == role.User {
+	// User and Guest can only delete their own chat
+	if userRole == role.User || userRole == role.Guest {
 		// Get the chat to check ownership
 		chat, err := u.chatCache.GetChatByID(livestreamUUID, chatID)
 		if err != nil {
@@ -313,37 +420,78 @@ func (u *LivestreamUsecase) DeleteChat(ctx context.Context, userRole role.Role, 
 		return nil
 	}
 
-	// Guest and other roles cannot delete chats
+	// Anonymous and other roles cannot delete chats
 	u.Log.Error(ctx, "Unauthorized access to DeleteChat")
 	return errors.ErrUnauthorized
 }
 func (u *LivestreamUsecase) GetDeleteChatIDs(ctx context.Context, userRole role.Role, livestreamUUID string) ([]string, error) {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to GetDeleteChatIDs")
+	// 获取直播信息
+	livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream in GetDeleteChatIDs: "+err.Error())
+		return nil, errors.ErrNotFound
+	}
+
+	// 检查观看权限（与GetChat保持一致）
+	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to GetDeleteChatIDs, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
 		return nil, err
 	}
+
 	ids, err := u.chatCache.GetDeleteChatIDs(livestreamUUID)
 	if err != nil {
 		return nil, err
 	}
 	return ids, nil
 }
-func (u *LivestreamUsecase) MuteUser(ctx context.Context, identityProvider string, userRole role.Role, livestreamUUID string, userID string) error {
+func (u *LivestreamUsecase) MuteUser(ctx context.Context, identityProvider string, userRole role.Role, currentUserID string, livestreamUUID string, chatID string) error {
 	if err := u.checkEditorRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to MuteUser")
 		return err
 	}
-	err := u.LivestreamRepo.MuteUser(identityProvider, livestreamUUID, userID)
+
+	// Query real user info from chatID (same pattern as DeleteChat)
+	chat, err := u.chatCache.GetChatByID(livestreamUUID, chatID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting chat: "+err.Error())
+		return err
+	}
+
+	// Cannot mute self
+	if chat.UserID == currentUserID {
+		u.Log.Warn(ctx, "User attempting to mute themselves")
+		return errors.ErrUnauthorized
+	}
+
+	// Editor cannot mute Admin or Editor
+	if userRole == role.Editor {
+		if chat.Role == role.Admin || chat.Role == role.Editor {
+			u.Log.Warn(ctx, "Editor cannot mute Admin or Editor")
+			return errors.ErrUnauthorized
+		}
+	}
+
+	// Use real userID from queried chat
+	err = u.LivestreamRepo.MuteUser(identityProvider, livestreamUUID, chat.UserID)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string, userRole role.Role) ([]byte, error) {
-	if err := u.checkUserRole(userRole); err != nil {
-		u.Log.Error(ctx, "Unauthorized access to GetFile")
+	// 获取直播信息以检查Visibility
+	livestream, err := u.LivestreamRepo.GetOne()
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
 		return nil, err
 	}
+
+	// 根据Visibility检查访问权限
+	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
+		u.Log.Warn(ctx, "Unauthorized access to GetFile, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
+		return nil, err
+	}
+
 	ext := filepath.Ext(filePath)
 	if ext == ".mp4" {
 		u.Log.Error(ctx, "Unauthorized access to mp4")
@@ -433,7 +581,7 @@ func (u *LivestreamUsecase) startCacheCleanup() {
 		time.Sleep(10 * time.Second) // Run cleanup every 10 seconds
 		now := time.Now().UnixMilli()
 
-		u.fileCache.Range(func(key, value interface{}) bool {
+		u.fileCache.Range(func(key, value any) bool {
 			filePath := key.(string)
 			filename := filepath.Base(filePath)
 

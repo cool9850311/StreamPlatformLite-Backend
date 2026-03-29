@@ -85,7 +85,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 		login.GET("/oauth/discord", discordOauthController.Callback)
 		login.POST("/logout", discordOauthController.Logout)
 	}
-	r.GET("/me", middleware.JWTAuthMiddleware(log), originAccountController.GetMe)
+	r.GET("/me", middleware.OptionalJWTAuthMiddleware(log), originAccountController.GetMe)
 
 	originAccount := r.Group("/origin-account")
 	{
@@ -104,25 +104,31 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 
 	livestream := r.Group("/livestream")
 	{
-		livestream.GET("/:uuid/:filename", middleware.JWTAuthMiddleware(log), livestreamController.GetFile)
-		livestream.GET("/record/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetRecord)
+		// 观看相关端点：使用OptionalJWT中间件（允许匿名访问public直播）
+		livestream.GET("/:uuid/:filename", middleware.OptionalJWTAuthMiddleware(log), livestreamController.GetFile)
+		livestream.GET("/one", middleware.OptionalJWTAuthMiddleware(log), livestreamController.GetLivestreamOne)
+		livestream.GET("/:uuid", middleware.OptionalJWTAuthMiddleware(log), livestreamController.GetLivestreamByID)
+		livestream.GET("/ping-viewer-count/:uuid", middleware.OptionalJWTAuthMiddleware(log), livestreamController.PingViewerCount)
+
+		// 管理端点：保持强制JWT（需要Admin权限）
 		livestream.POST("", middleware.JWTAuthMiddleware(log), livestreamController.CreateLivestream)
-		livestream.GET("/owner/:user_id", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByOwnerId)
-		livestream.GET("/one", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamOne)
-		livestream.GET("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByID)
 		livestream.PATCH("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.UpdateLivestream)
 		livestream.DELETE("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.DeleteLivestream)
-		livestream.GET("/ping-viewer-count/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.PingViewerCount)
+		livestream.GET("/owner/:user_id", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByOwnerId)
+		livestream.GET("/record/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetRecord)
 
 		chat := livestream.Group("/chat")
 		{
-			chat.GET("/:uuid/:index", middleware.JWTAuthMiddleware(log), livestreamController.GetChat)
-			// get deleted chat message
-			chat.GET("/delete/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetDeleteChatIDs)
+			// 读取聊天：使用OptionalJWT（匿名可读取public直播的聊天）
+			chat.GET("/:uuid/:index", middleware.OptionalJWTAuthMiddleware(log), livestreamController.GetChat)
+			chat.GET("/delete/:uuid", middleware.OptionalJWTAuthMiddleware(log), livestreamController.GetDeleteChatIDs)
+
+			// 发送/删除聊天：需要强制JWT（需要登录）
 			chat.POST("", middleware.JWTAuthMiddleware(log), livestreamController.AddChat)
 			chat.DELETE("/:uuid/:chat_id", middleware.JWTAuthMiddleware(log), livestreamController.RemoveViewerCount)
 		}
 
+		// 禁言功能：需要强制JWT
 		livestream.POST("/mute-user", middleware.JWTAuthMiddleware(log), livestreamController.MuteUser)
 	}
 }
