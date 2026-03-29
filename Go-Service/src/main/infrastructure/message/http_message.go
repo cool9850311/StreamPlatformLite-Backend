@@ -6,6 +6,7 @@ const (
 	MsgAccepted            = "Accepted"
 	MsgNoContent           = "No Content"
 	MsgBadRequest          = "Bad Request"
+	MsgInvalidInput        = "Invalid input"
 	MsgUnauthorized        = "Unauthorized"
 	MsgForbidden           = "Forbidden"
 	MsgNotFound            = "Not Found"

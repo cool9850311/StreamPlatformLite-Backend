@@ -25,6 +25,22 @@ func NewOriginAccountController(log logger.Logger, originAccountUseCase *usecase
 		originAccountUseCase: originAccountUseCase,
 	}
 }
+
+// getClaims safely extracts claims from context
+func (c *OriginAccountController) getClaims(ctx *gin.Context) (*dto.Claims, error) {
+	claimsValue := ctx.Request.Context().Value("claims")
+	if claimsValue == nil {
+		return nil, errors.ErrUnauthorized
+	}
+
+	claims, ok := claimsValue.(*dto.Claims)
+	if !ok {
+		c.Log.Error(ctx, "Failed to assert claims type")
+		return nil, errors.ErrInternal
+	}
+
+	return claims, nil
+}
 func (c *OriginAccountController) Login(ctx *gin.Context) {
 	var loginRequest struct {
 		Username string `form:"username"`
@@ -93,7 +109,15 @@ func (c *OriginAccountController) CreateAccount(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"message": "Username is required"})
 		return
 	}
-	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	claims, err := c.getClaims(ctx)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
 	account, err := c.originAccountUseCase.CreateAccount(ctx, claims.Role, createAccountRequest.Username, createAccountRequest.Role)
 	if err != nil {
 		if err == errors.ErrDuplicate {
@@ -106,7 +130,15 @@ func (c *OriginAccountController) CreateAccount(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, account)
 }
 func (c *OriginAccountController) GetAccountList(ctx *gin.Context) {
-	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	claims, err := c.getClaims(ctx)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
 	accounts, err := c.originAccountUseCase.GetAccountList(ctx, claims.Role)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
@@ -129,7 +161,15 @@ func (c *OriginAccountController) DeleteAccount(ctx *gin.Context) {
 		return
 	}
 
-	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	claims, err := c.getClaims(ctx)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
 	if err := c.originAccountUseCase.DeleteAccount(ctx, claims.Role, deleteAccountRequest.Username); err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
@@ -138,13 +178,24 @@ func (c *OriginAccountController) DeleteAccount(ctx *gin.Context) {
 }
 
 func (c *OriginAccountController) GetMe(ctx *gin.Context) {
-	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	claims, err := c.getClaims(ctx)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+
+	// 返回当前用户信息（包括Anonymous用户）
+	// 前端可以通过role字段判断用户类型
 	ctx.JSON(http.StatusOK, gin.H{
 		"user_id":           claims.UserID,
 		"username":          claims.UserName,
+		"avatar":            claims.Avatar,
 		"role":              claims.Role,
 		"identity_provider": claims.IdentityProvider,
-		"avatar":            claims.Avatar,
 	})
 }
 
@@ -164,7 +215,15 @@ func (c *OriginAccountController) ChangePassword(ctx *gin.Context) {
 		return
 	}
 
-	claims := ctx.Request.Context().Value("claims").(*dto.Claims)
+	claims, err := c.getClaims(ctx)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
 	if err := c.originAccountUseCase.ChangePassword(ctx, claims.Role, claims.UserName, changePasswordRequest.OldPassword, changePasswordRequest.NewPassword); err != nil {
 		if err == errors.ErrNotFound {
 			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Account not found"})

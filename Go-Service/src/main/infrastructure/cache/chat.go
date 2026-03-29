@@ -3,6 +3,7 @@ package cache
 import (
 	"Go-Service/src/main/application/interface/cache"
 	"Go-Service/src/main/domain/entity/chat"
+	"Go-Service/src/main/domain/entity/role"
 	"context"
 	"strconv"
 
@@ -55,7 +56,7 @@ func (r *RedisChat) GetChat(livestreamUUID string, index string, count int) ([]c
 			Avatar:   stream.Values["avatar"].(string),
 			Username: stream.Values["username"].(string),
 			Message:  stream.Values["message"].(string),
-			Role:     roleInt,
+			Role:     role.Role(roleInt),
 		})
 	}
 
@@ -74,7 +75,7 @@ func (r *RedisChat) AddChat(livestreamUUID string, chat chat.Chat) error {
 			"avatar":   chat.Avatar,
 			"username": chat.Username,
 			"message":  chat.Message,
-			"role":     chat.Role,
+			"role":     int(chat.Role),
 		},
 	}).Result()
 
@@ -132,7 +133,7 @@ func (r *RedisChat) GetChatByID(livestreamUUID string, chatID string) (*chat.Cha
 		Avatar:   message.Values["avatar"].(string),
 		Username: message.Values["username"].(string),
 		Message:  message.Values["message"].(string),
-		Role:     roleInt,
+		Role:     role.Role(roleInt),
 	}
 	return chatObj, nil
 }

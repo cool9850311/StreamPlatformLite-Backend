@@ -103,11 +103,41 @@ func TestOriginAccountUseCase_CreateAccount_Success(t *testing.T) {
 	setup.MockBcrypt.AssertExpectations(t)
 }
 
+func TestOriginAccountUseCase_CreateAccount_Editor_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	_, err := setup.UseCase.CreateAccount(ctx, role.Editor, "newuser", role.User)
+
+	assert.Error(t, err)
+	assert.Equal(t, "unauthorized access", err.Error())
+}
+
 func TestOriginAccountUseCase_CreateAccount_Unauthorized(t *testing.T) {
 	setup := setupOriginAccount()
 	ctx := context.Background()
 
 	_, err := setup.UseCase.CreateAccount(ctx, role.User, "newuser", role.User)
+
+	assert.Error(t, err)
+	assert.Equal(t, "unauthorized access", err.Error())
+}
+
+func TestOriginAccountUseCase_CreateAccount_Guest_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	_, err := setup.UseCase.CreateAccount(ctx, role.Guest, "newuser", role.User)
+
+	assert.Error(t, err)
+	assert.Equal(t, "unauthorized access", err.Error())
+}
+
+func TestOriginAccountUseCase_CreateAccount_Anonymous_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	_, err := setup.UseCase.CreateAccount(ctx, role.Anonymous, "newuser", role.User)
 
 	assert.Error(t, err)
 	assert.Equal(t, "unauthorized access", err.Error())
@@ -160,11 +190,41 @@ func TestOriginAccountUseCase_GetAccountList_Success(t *testing.T) {
 	setup.MockRepo.AssertExpectations(t)
 }
 
+func TestOriginAccountUseCase_GetAccountList_Editor_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	_, err := setup.UseCase.GetAccountList(ctx, role.Editor)
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+}
+
 func TestOriginAccountUseCase_GetAccountList_Unauthorized(t *testing.T) {
 	setup := setupOriginAccount()
 	ctx := context.Background()
 
 	_, err := setup.UseCase.GetAccountList(ctx, role.User)
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+}
+
+func TestOriginAccountUseCase_GetAccountList_Guest_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	_, err := setup.UseCase.GetAccountList(ctx, role.Guest)
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+}
+
+func TestOriginAccountUseCase_GetAccountList_Anonymous_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	_, err := setup.UseCase.GetAccountList(ctx, role.Anonymous)
 
 	assert.Error(t, err)
 	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
@@ -182,11 +242,41 @@ func TestOriginAccountUseCase_DeleteAccount_Success(t *testing.T) {
 	setup.MockRepo.AssertExpectations(t)
 }
 
+func TestOriginAccountUseCase_DeleteAccount_Editor_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	err := setup.UseCase.DeleteAccount(ctx, role.Editor, "user1")
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+}
+
 func TestOriginAccountUseCase_DeleteAccount_Unauthorized(t *testing.T) {
 	setup := setupOriginAccount()
 	ctx := context.Background()
 
 	err := setup.UseCase.DeleteAccount(ctx, role.User, "user1")
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+}
+
+func TestOriginAccountUseCase_DeleteAccount_Guest_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	err := setup.UseCase.DeleteAccount(ctx, role.Guest, "user1")
+
+	assert.Error(t, err)
+	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
+}
+
+func TestOriginAccountUseCase_DeleteAccount_Anonymous_Unauthorized(t *testing.T) {
+	setup := setupOriginAccount()
+	ctx := context.Background()
+
+	err := setup.UseCase.DeleteAccount(ctx, role.Anonymous, "user1")
 
 	assert.Error(t, err)
 	assert.Equal(t, innerErrors.ErrUnauthorized.Error(), err.Error())
