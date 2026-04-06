@@ -30,7 +30,11 @@ var cronJob *cron.Cron
 
 func InitLog() {
 	var err error
-	Log, err = infraLogger.NewLogger("application.log")
+	logLevel := config.AppConfig.Server.LogLevel
+	if logLevel == "" {
+		logLevel = "INFO"
+	}
+	Log, err = infraLogger.NewLogger("application.log", logLevel)
 	if err != nil {
 		panic(err)
 	}

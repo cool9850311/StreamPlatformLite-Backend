@@ -36,10 +36,12 @@ func setupOriginAccount() *OriginAccountTestSetup {
 			Domain       string `mapstructure:"domain"`
 			HTTPS        bool   `mapstructure:"https" default:"false"`
 			EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
+			LogLevel     string `mapstructure:"log_level" default:"INFO"`
 		}{
-			Domain: "localhost",
-			Port:   8080,
-			HTTPS:  false,
+			Domain:   "localhost",
+			Port:     8080,
+			HTTPS:    false,
+			LogLevel: "INFO",
 		},
 	}
 	useCase := usecase.NewOriginAccountUseCase(mockRepo, mockLogger, mockBcrypt, cfg, mockJWTGenerator)

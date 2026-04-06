@@ -38,11 +38,13 @@ func setup() (*mock_data.MockSystemSettingRepository, *mock_data.MockLogger, use
 			Domain       string `mapstructure:"domain"`
 			HTTPS        bool   `mapstructure:"https" default:"false"`
 			EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
+			LogLevel     string `mapstructure:"log_level" default:"INFO"`
 		}{
 			Port:         8080, // or any appropriate test value
 			Domain:       "fakeServerDomain",
 			HTTPS:        false, // or any appropriate test value
 			EnableGinLog: true,  // or any appropriate test value
+			LogLevel:     "INFO",
 		},
 		Frontend: struct {
 			Domain string `mapstructure:"domain"`
@@ -407,11 +409,13 @@ func TestDiscordLoginUseCase_InitiateLogin_HTTPS(t *testing.T) {
 			Domain       string `mapstructure:"domain"`
 			HTTPS        bool   `mapstructure:"https" default:"false"`
 			EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
+			LogLevel     string `mapstructure:"log_level" default:"INFO"`
 		}{
 			Port:         443,
 			Domain:       "asmr.pabo.live",
 			HTTPS:        true, // HTTPS enabled
 			EnableGinLog: true,
+			LogLevel:     "INFO",
 		},
 		Frontend: struct {
 			Domain string `mapstructure:"domain"`

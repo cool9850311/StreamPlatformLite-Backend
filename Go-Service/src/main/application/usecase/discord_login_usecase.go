@@ -71,7 +71,7 @@ func (u *DiscordLoginUseCase) InitiateLogin(ctx context.Context) (authURL string
 		"state":         {state},
 	}.Encode()
 
-	u.Log.Info(ctx, fmt.Sprintf("Generated OAuth URL with state: %s", state))
+	u.Log.Debug(ctx, fmt.Sprintf("Generated OAuth URL with state: %s", state))
 
 	return authURL, nil
 }

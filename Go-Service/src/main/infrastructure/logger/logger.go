@@ -16,12 +16,23 @@ type LoggerImpl struct {
 	entry  *logrus.Entry
 }
 
-func NewLogger(logFile string) (domainLogger.Logger, error) {
+func NewLogger(logFile string, logLevel string) (domainLogger.Logger, error) {
 	workingdir, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("%s", err)
 	}
-	log := logrus.New()
+
+	// Parse log level, fallback to INFO if invalid
+	level, err := logrus.ParseLevel(logLevel)
+	if err != nil {
+		log.Printf("Invalid log level '%s', falling back to INFO: %v", logLevel, err)
+		level = logrus.InfoLevel
+	}
+
+	logInstance := logrus.New()
+
+	// Set log level
+	logInstance.SetLevel(level)
 
 	// Open the log file
 	file, err := os.OpenFile(util.TrimPathToBase(workingdir, "Go-Service/")+logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
@@ -33,11 +44,11 @@ func NewLogger(logFile string) (domainLogger.Logger, error) {
 	multiWriter := io.MultiWriter(os.Stdout, file)
 
 	// Set logrus to write to the MultiWriter
-	log.SetOutput(multiWriter)
+	logInstance.SetOutput(multiWriter)
 
 	return &LoggerImpl{
-		logger: log,
-		entry:  logrus.NewEntry(log),
+		logger: logInstance,
+		entry:  logrus.NewEntry(logInstance),
 	}, nil
 }
 
