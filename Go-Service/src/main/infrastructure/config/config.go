@@ -52,4 +52,11 @@ func LoadConfig() {
 	if err != nil {
 		log.Printf("Invalid HTTPS: %s", err)
 	}
+
+	// Load log level, default to INFO if not set
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "INFO"
+	}
+	AppConfig.Server.LogLevel = logLevel
 }

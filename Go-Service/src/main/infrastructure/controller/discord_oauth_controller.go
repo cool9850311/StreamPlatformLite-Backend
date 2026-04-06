@@ -51,13 +51,13 @@ func (c *DiscordOauthController) Callback(ctx *gin.Context) {
 		return
 	}
 
-	c.Log.Info(ctx, fmt.Sprintf("🔍 DEBUG Callback: token=%s, successURL=%s", token, successURL))
+	c.Log.Debug(ctx, fmt.Sprintf("🔍 DEBUG Callback: token=%s, successURL=%s", token, successURL))
 
 	// Set HttpOnly cookie with token
 	c.setCookie(ctx, token)
 
 	// Redirect to success URL
-	c.Log.Info(ctx, fmt.Sprintf("🔍 DEBUG Redirecting to: %s", successURL))
+	c.Log.Debug(ctx, fmt.Sprintf("🔍 DEBUG Redirecting to: %s", successURL))
 	ctx.Header("Location", successURL)
 	ctx.Status(http.StatusFound)
 }
@@ -95,7 +95,7 @@ func (c *DiscordOauthController) setCookie(ctx *gin.Context, token string) {
 		cookieValue = fmt.Sprintf("token=%s; Path=/; Domain=%s; Max-Age=86400; HttpOnly; SameSite=%s%s", token, domain, sameSite, secure)
 	}
 
-	c.Log.Info(ctx, fmt.Sprintf("🔍 DEBUG Setting cookie header: %s", cookieValue))
+	c.Log.Debug(ctx, fmt.Sprintf("🔍 DEBUG Setting cookie header: %s", cookieValue))
 	ctx.Header("Set-Cookie", cookieValue)
 }
 
@@ -122,6 +122,6 @@ func (c *DiscordOauthController) clearCookie(ctx *gin.Context) {
 		cookieValue = fmt.Sprintf("token=; Path=/; Domain=%s; Max-Age=-1; HttpOnly; SameSite=%s%s", domain, sameSite, secure)
 	}
 
-	c.Log.Info(ctx, fmt.Sprintf("🔍 DEBUG Logout: Clearing cookie with header: %s", cookieValue))
+	c.Log.Debug(ctx, fmt.Sprintf("🔍 DEBUG Logout: Clearing cookie with header: %s", cookieValue))
 	ctx.Header("Set-Cookie", cookieValue)
 }

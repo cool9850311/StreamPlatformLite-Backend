@@ -10,10 +10,12 @@ import (
 )
 
 func main() {
+	// Load config first so LOG_LEVEL is available
+	initializer.InitConfig()
+	// Initialize logger with config loaded
 	initializer.InitLog()
 	logger := initializer.Log
-	logger.Info(context.TODO(), "start InitConfig")
-	initializer.InitConfig()
+	logger.Info(context.TODO(), "Configuration loaded successfully")
 	logger.Info(context.TODO(), "start InitMongoClient")
 	initializer.InitMongoClient()
 	logger.Info(context.TODO(), "start InitRedisClient")

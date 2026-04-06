@@ -6,6 +6,7 @@ type Config struct {
 		Domain       string `mapstructure:"domain"`
 		HTTPS        bool   `mapstructure:"https" default:"false"`
 		EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
+		LogLevel     string `mapstructure:"log_level" default:"INFO"`
 	} `mapstructure:"server"`
 	Frontend struct {
 		Domain string `mapstructure:"domain"`

@@ -2,19 +2,25 @@ package discord
 
 import (
 	"Go-Service/src/main/application/dto"
+	"Go-Service/src/main/domain/interface/logger"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 )
 
-type DiscordOAuthImpl struct{}
+type DiscordOAuthImpl struct {
+	logger logger.Logger
+}
 
-func NewDiscordOAuthImpl() *DiscordOAuthImpl {
-	return &DiscordOAuthImpl{}
+func NewDiscordOAuthImpl(log logger.Logger) *DiscordOAuthImpl {
+	return &DiscordOAuthImpl{
+		logger: log,
+	}
 }
 
 func (d *DiscordOAuthImpl) GetAccessToken(ctx context.Context, clientID string, clientSecret string, code string, redirectURI string) (string, error) {
@@ -44,7 +50,11 @@ func (d *DiscordOAuthImpl) GetAccessToken(ctx context.Context, clientID string, 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", errors.New("failed to get access token: " + string(body) + " | request data: " + data.Encode())
+		// Log detailed information at debug level for troubleshooting
+		d.logger.Debug(ctx, fmt.Sprintf("Discord OAuth token exchange failed. Status: %d, Body: %s, Request: %s",
+			resp.StatusCode, string(body), data.Encode()))
+		// Return generic error without sensitive information
+		return "", errors.New("failed to get access token from Discord")
 	}
 
 	var tokenResponse struct {
@@ -77,7 +87,11 @@ func (d *DiscordOAuthImpl) GetGuildMemberData(ctx context.Context, accessToken s
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("failed to get guild member data: " + string(body))
+		// Log detailed information at debug level for troubleshooting
+		d.logger.Debug(ctx, fmt.Sprintf("Discord API failed to get guild member data. Status: %d, Body: %s",
+			resp.StatusCode, string(body)))
+		// Return generic error without sensitive information
+		return nil, errors.New("failed to get guild member data from Discord")
 	}
 
 	var guildMemberData dto.DiscordGuildMemberDTO
@@ -86,7 +100,11 @@ func (d *DiscordOAuthImpl) GetGuildMemberData(ctx context.Context, accessToken s
 		// This makes the system more resilient to Discord API changes
 		var rawData map[string]interface{}
 		if unmarshalErr := json.Unmarshal(body, &rawData); unmarshalErr != nil {
-			return nil, errors.New("failed to parse guild member data: " + err.Error() + " | raw response: " + string(body))
+			// Log detailed information at debug level for troubleshooting
+			d.logger.Debug(ctx, fmt.Sprintf("Failed to parse guild member data. Error: %s, Raw response: %s",
+				err.Error(), string(body)))
+			// Return error without sensitive response body
+			return nil, errors.New("failed to parse guild member data: " + err.Error())
 		}
 
 		// Extract essential fields that we need for the application to work

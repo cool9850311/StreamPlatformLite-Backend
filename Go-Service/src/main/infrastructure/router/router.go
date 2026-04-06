@@ -62,7 +62,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
 	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
 	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)
-	discordOAuthOuterApi := discord.NewDiscordOAuthImpl()
+	discordOAuthOuterApi := discord.NewDiscordOAuthImpl(log)
 	jwtGenerator := util.NewJWTLibrary()
 	bcrypt := util.NewBcryptLibrary()
 	stateStore := util.NewRedisStateStore(redisClient)
