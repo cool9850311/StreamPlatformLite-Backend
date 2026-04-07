@@ -1,6 +1,6 @@
 module Go-Service
 
-go 1.22
+go 1.26
 
 require (
 	github.com/cool9850311/lal-StreamPlatformLite v0.37.16
