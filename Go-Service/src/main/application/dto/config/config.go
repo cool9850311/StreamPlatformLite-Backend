@@ -28,4 +28,19 @@ type Config struct {
 	Redis struct {
 		URI string `mapstructure:"uri"`
 	} `mapstructure:"redis"`
+	RateLimit struct {
+		Enabled bool `json:"enabled"`
+
+		// 登录端点 (IP 维度)
+		LoginPerMinute     int64 `json:"login_per_minute"`
+		OAuthInitPerMinute int64 `json:"oauth_init_per_minute"`
+		LogoutPerMinute    int64 `json:"logout_per_minute"`
+
+		// 聊天端点 (用户ID 维度)
+		ChatPostPerMinute   int64 `json:"chat_post_per_minute"`
+		ChatDeletePerMinute int64 `json:"chat_delete_per_minute"`
+
+		// 账户管理
+		ChangePasswordPerHour int64 `json:"change_password_per_hour"`
+	}
 }

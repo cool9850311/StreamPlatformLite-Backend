@@ -8,6 +8,7 @@ import (
 	"Go-Service/src/main/infrastructure/cache"
 	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/controller"
+	"Go-Service/src/main/infrastructure/initializer"
 	"Go-Service/src/main/infrastructure/middleware"
 	"Go-Service/src/main/infrastructure/outer_api/discord"
 	"Go-Service/src/main/infrastructure/repository"
@@ -50,7 +51,7 @@ func setupMiddlewares(r *gin.Engine) {
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Cache-Control"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Cache-Control", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"},
 		AllowCredentials: true,
 	}))
 
@@ -58,6 +59,9 @@ func setupMiddlewares(r *gin.Engine) {
 }
 
 func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) {
+	// Initialize rate limiters
+	initializer.InitRateLimiters()
+
 	// Initialize repositories, use cases, and controllers
 	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
 	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
@@ -81,17 +85,17 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 
 	login := r.Group("/")
 	{
-		login.GET("/oauth/discord/init", discordOauthController.InitiateLogin)
+		login.GET("/oauth/discord/init", middleware.RateLimitByIP(initializer.OAuthInitLimiter), discordOauthController.InitiateLogin)
 		login.GET("/oauth/discord", discordOauthController.Callback)
-		login.POST("/logout", discordOauthController.Logout)
+		login.POST("/logout", middleware.RateLimitByIP(initializer.LogoutLimiter), discordOauthController.Logout)
 	}
 	r.GET("/me", middleware.OptionalJWTAuthMiddleware(log), originAccountController.GetMe)
 
 	originAccount := r.Group("/origin-account")
 	{
-		originAccount.POST("/login", originAccountController.Login)
+		originAccount.POST("/login", middleware.RateLimitByIP(initializer.LoginLimiter), originAccountController.Login)
 		originAccount.POST("/create", middleware.JWTAuthMiddleware(log), originAccountController.CreateAccount)
-		originAccount.PATCH("/change-password", middleware.JWTAuthMiddleware(log), originAccountController.ChangePassword)
+		originAccount.PATCH("/change-password", middleware.JWTAuthMiddleware(log), middleware.RateLimitByUserID(initializer.ChangePasswordLimiter), originAccountController.ChangePassword)
 		originAccount.GET("/list", middleware.JWTAuthMiddleware(log), originAccountController.GetAccountList)
 		originAccount.DELETE("/delete", middleware.JWTAuthMiddleware(log), originAccountController.DeleteAccount)
 	}
@@ -124,8 +128,8 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 			chat.GET("/delete/:uuid", middleware.OptionalJWTAuthMiddleware(log), livestreamController.GetDeleteChatIDs)
 
 			// 发送/删除聊天：需要强制JWT（需要登录）
-			chat.POST("", middleware.JWTAuthMiddleware(log), livestreamController.AddChat)
-			chat.DELETE("/:uuid/:chat_id", middleware.JWTAuthMiddleware(log), livestreamController.RemoveViewerCount)
+			chat.POST("", middleware.JWTAuthMiddleware(log), middleware.RateLimitByUserID(initializer.ChatPostLimiter), livestreamController.AddChat)
+			chat.DELETE("/:uuid/:chat_id", middleware.JWTAuthMiddleware(log), middleware.RateLimitByUserID(initializer.ChatDeleteLimiter), livestreamController.RemoveViewerCount)
 		}
 
 		// 禁言功能：需要强制JWT

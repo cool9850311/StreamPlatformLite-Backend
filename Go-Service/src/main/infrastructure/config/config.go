@@ -12,6 +12,34 @@ import (
 
 var AppConfig config.Config
 
+// getEnvAsBool reads an environment variable as a boolean with a default value
+func getEnvAsBool(key string, defaultValue bool) bool {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(valueStr)
+	if err != nil {
+		log.Printf("Invalid value for %s: %s, using default: %t", key, err, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
+// getEnvAsInt64 reads an environment variable as int64 with a default value
+func getEnvAsInt64(key string, defaultValue int64) int64 {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		log.Printf("Invalid value for %s: %s, using default: %d", key, err, defaultValue)
+		return defaultValue
+	}
+	return value
+}
+
 func LoadConfig() {
 	// Load .env file
 	projectRootPath, err := util.GetProjectRootPath()
@@ -59,4 +87,13 @@ func LoadConfig() {
 		logLevel = "INFO"
 	}
 	AppConfig.Server.LogLevel = logLevel
+
+	// Load Rate Limiting configuration
+	AppConfig.RateLimit.Enabled = getEnvAsBool("RATE_LIMIT_ENABLED", true)
+	AppConfig.RateLimit.LoginPerMinute = getEnvAsInt64("RATE_LIMIT_LOGIN_PER_MINUTE", 5)
+	AppConfig.RateLimit.OAuthInitPerMinute = getEnvAsInt64("RATE_LIMIT_OAUTH_INIT_PER_MINUTE", 5)
+	AppConfig.RateLimit.LogoutPerMinute = getEnvAsInt64("RATE_LIMIT_LOGOUT_PER_MINUTE", 10)
+	AppConfig.RateLimit.ChatPostPerMinute = getEnvAsInt64("RATE_LIMIT_CHAT_POST_PER_MINUTE", 10)
+	AppConfig.RateLimit.ChatDeletePerMinute = getEnvAsInt64("RATE_LIMIT_CHAT_DELETE_PER_MINUTE", 10)
+	AppConfig.RateLimit.ChangePasswordPerHour = getEnvAsInt64("RATE_LIMIT_CHANGE_PASSWORD_PER_HOUR", 10)
 }

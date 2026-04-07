@@ -47,6 +47,9 @@ func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 		ctx := context.WithValue(c.Request.Context(), "claims", claims)
 		c.Request = c.Request.WithContext(ctx)
 
+		// Also store user_id in Gin context for rate limiting middleware
+		c.Set("user_id", claims.UserID)
+
 		c.Next()
 	}
 }
