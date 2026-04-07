@@ -478,29 +478,45 @@ func (u *LivestreamUsecase) MuteUser(ctx context.Context, identityProvider strin
 	}
 	return nil
 }
-func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string, userRole role.Role) ([]byte, error) {
-	// 获取直播信息以检查Visibility
+func (u *LivestreamUsecase) GetFile(ctx context.Context, rootPath, uuidStr, filename string, userRole role.Role) ([]byte, error) {
+	// 1. Strictly validate UUID (external input)
+	if err := util.ValidateUUID(uuidStr); err != nil {
+		u.Log.Warn(ctx, "Invalid UUID in GetFile: "+uuidStr)
+		return nil, errors.ErrInvalidInput
+	}
+
+	// 2. Strictly validate filename (external input) - whitelist: .m3u8, .ts
+	allowedExts := []string{".m3u8", ".ts"}
+	if err := util.ValidateHLSFilename(filename, allowedExts); err != nil {
+		u.Log.Warn(ctx, "Invalid filename in GetFile: "+filename+" - "+err.Error())
+		return nil, errors.ErrInvalidInput
+	}
+
+	// 3. Block access to record.m3u8
+	if filename == "record.m3u8" {
+		u.Log.Error(ctx, "Unauthorized access to record.m3u8")
+		return nil, errors.ErrNotFound
+	}
+
+	// 4. After validation, combine trusted rootPath with validated parameters
+	// No need to validate the combined path - it's guaranteed to be safe
+	filePath := filepath.Join(rootPath, "hls", uuidStr, filename)
+
+	// 5. Check livestream visibility
 	livestream, err := u.LivestreamRepo.GetOne()
 	if err != nil {
 		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
 		return nil, err
 	}
 
-	// 根据Visibility检查访问权限
+	// 6. Check access permission based on visibility
 	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
 		u.Log.Warn(ctx, "Unauthorized access to GetFile, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
 		return nil, err
 	}
 
-	ext := filepath.Ext(filePath)
-	if ext == ".mp4" {
-		u.Log.Error(ctx, "Unauthorized access to mp4")
-		return nil, errors.ErrNotFound
-	}
-	if filepath.Base(filePath) == "record.m3u8" {
-		u.Log.Error(ctx, "Unauthorized access to record.m3u8")
-		return nil, errors.ErrNotFound
-	}
+	// 7. Read file with caching
+	ext := filepath.Ext(filename)
 	if ext == ".m3u8" {
 		u.m3u8Lock.Lock()
 		defer u.m3u8Lock.Unlock()
@@ -524,16 +540,22 @@ func (u *LivestreamUsecase) GetFile(ctx context.Context, filePath string, userRo
 
 	return fileData, nil
 }
-func (u *LivestreamUsecase) GetRecord(ctx context.Context, livestreamUUID string, filePath string, userRole role.Role) (string, error) {
+func (u *LivestreamUsecase) GetRecord(ctx context.Context, rootPath, livestreamUUID string, userRole role.Role) (string, error) {
+	// 1. Check admin role
 	if err := u.checkAdminRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to GetRecord")
 		return "", err
 	}
-	ext := filepath.Ext(filePath)
-	if ext != ".mp4" {
-		u.Log.Error(ctx, "Not mp4 file: "+filePath)
-		return "", errors.ErrNotFound
+
+	// 2. Strictly validate UUID (external input)
+	if err := util.ValidateUUID(livestreamUUID); err != nil {
+		u.Log.Warn(ctx, "Invalid UUID in GetRecord: "+livestreamUUID)
+		return "", errors.ErrInvalidInput
 	}
+
+	// 3. After validation, combine trusted rootPath with validated UUID
+	// No need to validate the combined path - it's guaranteed to be safe
+	filePath := filepath.Join(rootPath, "hls", livestreamUUID, "*.mp4")
 
 	fullFilePath, err := u.fileCache.GetSingleFileName(filePath)
 	if err != nil {
@@ -544,9 +566,8 @@ func (u *LivestreamUsecase) GetRecord(ctx context.Context, livestreamUUID string
 			return "", errors.ErrNotFound
 		}
 
-		// Instead of passing filePath as the source, construct the source file
-		// as a "record.m3u8" file in the same directory.
-		recordPath := filepath.Join(filepath.Dir(filePath), "record.m3u8")
+		// Construct the source file as "record.m3u8" in the same directory
+		recordPath := filepath.Join(rootPath, "hls", livestreamUUID, "record.m3u8")
 		go func() {
 			defer u.convertTaskLock.Unlock()
 			u.Log.Info(ctx, "Converting stream to mp4: from "+recordPath+" to "+filePath)
