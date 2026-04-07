@@ -362,14 +362,14 @@ func (c *LivestreamController) MuteUser(ctx *gin.Context) {
 }
 
 func (c *LivestreamController) GetFile(ctx *gin.Context) {
+	uuidStr := ctx.Param("uuid")
 	filename := ctx.Param("filename")
+
 	rootPath, err := util.GetProjectRootPath()
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
-
-	filePath := filepath.Clean(rootPath + "/hls/" + ctx.Param("uuid") + "/" + filename)
 
 	claims, err := c.getClaims(ctx)
 	if err != nil {
@@ -380,10 +380,16 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
-	fileData, err := c.livestreamUseCase.GetFile(ctx, filePath, claims.Role)
+
+	// Pass rootPath (trusted), uuid and filename (external inputs) to usecase
+	fileData, err := c.livestreamUseCase.GetFile(ctx, rootPath, uuidStr, filename, claims.Role)
 	if err != nil {
 		if err == errors.ErrUnauthorized {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		if err == errors.ErrInvalidInput {
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Invalid input"})
 			return
 		}
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
@@ -393,14 +399,14 @@ func (c *LivestreamController) GetFile(ctx *gin.Context) {
 	ctx.Data(http.StatusOK, getContentType(filename), fileData)
 }
 func (c *LivestreamController) GetRecord(ctx *gin.Context) {
-	id := ctx.Param("uuid")
+	uuidStr := ctx.Param("uuid")
+
 	rootPath, err := util.GetProjectRootPath()
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
 
-	filePath := filepath.Clean(rootPath + "/hls/" + id + "/" + "*.mp4")
 	claims, err := c.getClaims(ctx)
 	if err != nil {
 		if err == errors.ErrUnauthorized {
@@ -410,8 +416,14 @@ func (c *LivestreamController) GetRecord(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
-	fullFilePath, err := c.livestreamUseCase.GetRecord(ctx, id, filePath, claims.Role)
+
+	// Pass rootPath (trusted) and uuid (external input) to usecase
+	fullFilePath, err := c.livestreamUseCase.GetRecord(ctx, rootPath, uuidStr, claims.Role)
 	if err != nil {
+		if err == errors.ErrInvalidInput {
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Invalid input"})
+			return
+		}
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
 	}

@@ -8,6 +8,7 @@ import (
 	"Go-Service/src/main/domain/entity/role"
 	"Go-Service/src/test/usecase/mock_data"
 	"context"
+	"path/filepath"
 	"testing"
 
 	"Go-Service/src/main/domain/entity/chat"
@@ -1546,16 +1547,22 @@ func TestGetFile_Public_Anonymous_Success(t *testing.T) {
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
-		UUID:       "livestream123",
+		UUID:       "83636040-7f54-49f2-ae40-9a1213614729",
 		Visibility: livestream.Public,
 	}
 
 	testFileData := []byte("test file content")
 
 	setup.MockRepo.On("GetOne").Return(testLivestream, nil)
-	setup.MockFileCache.On("LoadCache", "playlist.m3u8").Return(testFileData, true)
+	setup.MockFileCache.On("LoadCache", "/test/root/hls/83636040-7f54-49f2-ae40-9a1213614729/playlist.m3u8").Return(testFileData, true)
 
-	file, err := setup.UseCase.GetFile(ctx, "playlist.m3u8", role.Anonymous)
+	file, err := setup.UseCase.GetFile(
+		ctx,
+		"/test/root",                           // rootPath (trusted)
+		"83636040-7f54-49f2-ae40-9a1213614729", // uuid (external)
+		"playlist.m3u8",                        // filename (external)
+		role.Anonymous,
+	)
 
 	assert.NoError(t, err)
 	assert.Equal(t, testFileData, file)
@@ -1569,13 +1576,19 @@ func TestGetFile_MemberOnly_Guest_Unauthorized(t *testing.T) {
 	ctx := context.Background()
 
 	testLivestream := &livestream.Livestream{
-		UUID:       "livestream123",
+		UUID:       "83636040-7f54-49f2-ae40-9a1213614729",
 		Visibility: livestream.MemberOnly,
 	}
 
 	setup.MockRepo.On("GetOne").Return(testLivestream, nil)
 
-	file, err := setup.UseCase.GetFile(ctx, "playlist.m3u8", role.Guest)
+	file, err := setup.UseCase.GetFile(
+		ctx,
+		"/test/root",
+		"83636040-7f54-49f2-ae40-9a1213614729",
+		"playlist.m3u8",
+		role.Guest,
+	)
 
 	assert.Error(t, err)
 	assert.Nil(t, file)
@@ -1588,7 +1601,7 @@ func TestGetRecord_Editor_Unauthorized(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Editor)
+	result, err := setup.UseCase.GetRecord(ctx, "/test/root", "livestream123", role.Editor)
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrUnauthorized, err)
@@ -1600,7 +1613,7 @@ func TestGetRecord_User_Unauthorized(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.User)
+	result, err := setup.UseCase.GetRecord(ctx, "/test/root", "livestream123", role.User)
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrUnauthorized, err)
@@ -1613,24 +1626,27 @@ func TestGetFile_NotFound(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	testLivestream := &livestream.Livestream{
-		UUID:       "livestream123",
-		Visibility: livestream.Public,
-	}
-
-	setup.MockRepo.On("GetOne").Return(testLivestream, nil)
-
-	// Test for record.m3u8
-	file, err := setup.UseCase.GetFile(ctx, "record.m3u8", role.User)
+	// Test for record.m3u8 (blocked in usecase)
+	file, err := setup.UseCase.GetFile(
+		ctx,
+		"/test/root",
+		"83636040-7f54-49f2-ae40-9a1213614729",
+		"record.m3u8",
+		role.User,
+	)
 	assert.Nil(t, file)
 	assert.Equal(t, errors.ErrNotFound, err)
 
-	// Test for *.mp4
-	file, err = setup.UseCase.GetFile(ctx, "output.mp4", role.User)
+	// Test for *.mp4 (should fail at validation)
+	file, err = setup.UseCase.GetFile(
+		ctx,
+		"/test/root",
+		"83636040-7f54-49f2-ae40-9a1213614729",
+		"output.mp4",
+		role.User,
+	)
 	assert.Nil(t, file)
-	assert.Equal(t, errors.ErrNotFound, err)
-
-	setup.MockRepo.AssertExpectations(t)
+	assert.Equal(t, errors.ErrInvalidInput, err)
 }
 
 // ================================================================================
@@ -1642,32 +1658,28 @@ func TestGetFile_NotFound(t *testing.T) {
 func TestGetRecord_Admin_Success(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
-	setup.MockFileCache.On("GetSingleFileName", "*.mp4").Return("output.mp4", nil)
 
-	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Admin)
+	validUUID := "83636040-7f54-49f2-ae40-9a1213614729"
+	rootPath := "/test/root"
+	filePath := "/test/root/hls/" + validUUID + "/*.mp4"
+
+	setup.MockFileCache.On("GetSingleFileName", filePath).Return("output.mp4", nil)
+
+	result, err := setup.UseCase.GetRecord(ctx, rootPath, validUUID, role.Admin)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "output.mp4", result)
 	setup.MockFileCache.AssertExpectations(t)
 }
 
-// Role: Admin - Not Mp4
-func TestGetRecord_Admin_NotMp4(t *testing.T) {
-	setup := setupLivestream()
-	ctx := context.Background()
-
-	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.m3u8", role.Admin)
-
-	assert.Error(t, err)
-	assert.Equal(t, errors.ErrNotFound, err)
-	assert.Empty(t, result)
-}
+// Role: Admin - Not Mp4 (this test is no longer relevant as GetRecord always uses *.mp4)
+// Removed - GetRecord now always constructs path with *.mp4
 
 // Role: Guest (Unauthorized)
 func TestGetRecord_Guest_Unauthorized(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
-	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Guest)
+	result, err := setup.UseCase.GetRecord(ctx, "/test/root", "livestream123", role.Guest)
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrUnauthorized, err)
@@ -1679,7 +1691,7 @@ func TestGetRecord_Anonymous_Unauthorized(t *testing.T) {
 	setup := setupLivestream()
 	ctx := context.Background()
 
-	result, err := setup.UseCase.GetRecord(ctx, "livestream123", "*.mp4", role.Anonymous)
+	result, err := setup.UseCase.GetRecord(ctx, "/test/root", "livestream123", role.Anonymous)
 
 	assert.Error(t, err)
 	assert.Equal(t, errors.ErrUnauthorized, err)
@@ -1777,4 +1789,196 @@ func TestGetDeleteChatIDs_MemberOnly_Guest_Unauthorized(t *testing.T) {
 	assert.Nil(t, result)
 	assert.Equal(t, errors.ErrUnauthorized, err)
 	setup.MockRepo.AssertExpectations(t)
+}
+
+// ================================================================================
+// Path Validation Tests for GetFile (Table-Driven)
+// ================================================================================
+
+func TestGetFile_PathValidation(t *testing.T) {
+	validUUID := "83636040-7f54-49f2-ae40-9a1213614729"
+	rootPath := "/test/root"
+
+	tests := []struct {
+		name           string
+		uuid           string
+		filename       string
+		expectError    error
+		needMock       bool
+		mockLivestream bool
+	}{
+		{
+			name:           "Valid M3U8",
+			uuid:           validUUID,
+			filename:       "playlist.m3u8",
+			expectError:    nil,
+			needMock:       true,
+			mockLivestream: true,
+		},
+		{
+			name:           "Valid TS",
+			uuid:           validUUID,
+			filename:       "segment0.ts",
+			expectError:    nil,
+			needMock:       true,
+			mockLivestream: true,
+		},
+		{
+			name:        "Invalid UUID",
+			uuid:        "invalid-uuid",
+			filename:    "playlist.m3u8",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Path Traversal",
+			uuid:        validUUID,
+			filename:    "../../../etc/passwd",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Filename With Slash",
+			uuid:        validUUID,
+			filename:    "subdir/file.m3u8",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Mp4 Extension",
+			uuid:        validUUID,
+			filename:    "video.mp4",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Php Extension",
+			uuid:        validUUID,
+			filename:    "malicious.php",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Absolute Path",
+			uuid:        validUUID,
+			filename:    "/etc/passwd",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Empty Filename",
+			uuid:        validUUID,
+			filename:    "",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Record M3u8",
+			uuid:        validUUID,
+			filename:    "record.m3u8",
+			expectError: errors.ErrNotFound,
+		},
+		{
+			name:        "Backslash Separator",
+			uuid:        validUUID,
+			filename:    "..\\..\\etc\\passwd",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Double Slash",
+			uuid:        validUUID,
+			filename:    "//playlist.m3u8",
+			expectError: errors.ErrInvalidInput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setup := setupLivestream()
+			ctx := context.Background()
+
+			if tt.mockLivestream {
+				testLivestream := &livestream.Livestream{
+					UUID:       validUUID,
+					Visibility: livestream.Public,
+				}
+				setup.MockRepo.On("GetOne").Return(testLivestream, nil)
+			}
+
+			if tt.needMock {
+				testFileData := []byte("test file content")
+				filePath := filepath.Join(rootPath, "hls", tt.uuid, tt.filename)
+				setup.MockFileCache.On("LoadCache", filePath).Return(testFileData, true)
+			}
+
+			file, err := setup.UseCase.GetFile(ctx, rootPath, tt.uuid, tt.filename, role.User)
+
+			if tt.expectError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectError, err)
+				assert.Nil(t, file)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, file)
+			}
+
+			if tt.mockLivestream || tt.needMock {
+				setup.MockRepo.AssertExpectations(t)
+				setup.MockFileCache.AssertExpectations(t)
+			}
+		})
+	}
+}
+
+// ================================================================================
+// Path Validation Tests for GetRecord (Table-Driven)
+// ================================================================================
+
+func TestGetRecord_PathValidation(t *testing.T) {
+	validUUID := "83636040-7f54-49f2-ae40-9a1213614729"
+	rootPath := "/test/root"
+
+	tests := []struct {
+		name        string
+		uuid        string
+		expectError error
+		needMock    bool
+	}{
+		{
+			name:        "Valid Mp4",
+			uuid:        validUUID,
+			expectError: nil,
+			needMock:    true,
+		},
+		{
+			name:        "Invalid UUID",
+			uuid:        "invalid-uuid",
+			expectError: errors.ErrInvalidInput,
+		},
+		{
+			name:        "Empty UUID",
+			uuid:        "",
+			expectError: errors.ErrInvalidInput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setup := setupLivestream()
+			ctx := context.Background()
+
+			if tt.needMock {
+				filePath := filepath.Join(rootPath, "hls", tt.uuid, "*.mp4")
+				setup.MockFileCache.On("GetSingleFileName", filePath).Return("output.mp4", nil)
+			}
+
+			result, err := setup.UseCase.GetRecord(ctx, rootPath, tt.uuid, role.Admin)
+
+			if tt.expectError != nil {
+				assert.Error(t, err)
+				assert.Equal(t, tt.expectError, err)
+				assert.Empty(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, "output.mp4", result)
+			}
+
+			if tt.needMock {
+				setup.MockFileCache.AssertExpectations(t)
+			}
+		})
+	}
 }
