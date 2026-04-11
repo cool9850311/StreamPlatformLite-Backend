@@ -55,6 +55,9 @@ func setupMiddlewares(r *gin.Engine) {
 		AllowCredentials: true,
 	}))
 
+	// 添加安全响应头中间件
+	r.Use(middleware.SecurityHeaders())
+
 	r.Use(middleware.TraceIDMiddleware())
 }
 

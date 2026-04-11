@@ -4,3 +4,4 @@ Go-Service/application.log
 .env
 docker-compose.yml
 hls
+.playwright-mcp/
