@@ -66,12 +66,8 @@ func LoadConfig() {
 	AppConfig.Discord.GuildID = os.Getenv("DISCORD_GUILD_ID")
 	AppConfig.Server.Domain = os.Getenv("DOMAIN")
 	AppConfig.Frontend.Domain = os.Getenv("FRONTEND_DOMAIN")
-	AppConfig.Frontend.Port, err = strconv.Atoi(os.Getenv("FRONTEND_PORT"))
+	AppConfig.Frontend.Port = int(getEnvAsInt64("FRONTEND_PORT", 3000))
 	AppConfig.Redis.URI = os.Getenv("REDIS_URI")
-
-	if err != nil {
-		log.Fatalf("Invalid FRONTEND_PORT: %s", err)
-	}
 	AppConfig.Server.EnableGinLog, err = strconv.ParseBool(os.Getenv("ENABLE_GIN_LOG"))
 	if err != nil {
 		log.Printf("Invalid ENABLE_GIN_LOG: %s", err)
