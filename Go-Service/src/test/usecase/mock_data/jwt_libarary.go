@@ -21,3 +21,16 @@ func (m *MockJWTGenerator) GenerateOriginToken(ctx context.Context, userID strin
 	args := m.Called(ctx, userID, username, userRole, secretKey)
 	return args.String(0), args.Error(1)
 }
+
+func (m *MockJWTGenerator) GenerateAnonymousViewerToken(viewerID, secretKey string) (string, error) {
+	args := m.Called(viewerID, secretKey)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockJWTGenerator) ParseAnonymousViewerToken(tokenString, secretKey string) (*dto.AnonymousViewerClaims, error) {
+	args := m.Called(tokenString, secretKey)
+	if args.Get(0) != nil {
+		return args.Get(0).(*dto.AnonymousViewerClaims), args.Error(1)
+	}
+	return nil, args.Error(1)
+}
