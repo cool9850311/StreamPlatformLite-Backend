@@ -14,3 +14,8 @@ type Claims struct {
 	IdentityProvider string    `json:"identity_provider"`
 	jwt.RegisteredClaims
 }
+
+type AnonymousViewerClaims struct {
+	ViewerID string `json:"viewer_id"`
+	jwt.RegisteredClaims
+}

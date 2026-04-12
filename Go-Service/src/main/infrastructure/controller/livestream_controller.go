@@ -3,11 +3,13 @@ package controller
 import (
 	"Go-Service/src/main/application/dto"
 	livestreamDTO "Go-Service/src/main/application/dto/livestream"
+	jwtInterface "Go-Service/src/main/application/interface/jwt"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
 	"Go-Service/src/main/domain/interface/logger"
+	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/message"
 	"Go-Service/src/main/infrastructure/util"
 	"fmt"
@@ -22,12 +24,14 @@ import (
 type LivestreamController struct {
 	Log               logger.Logger
 	livestreamUseCase *usecase.LivestreamUsecase
+	jwtUtil           jwtInterface.JWTGenerator
 }
 
-func NewLivestreamController(log logger.Logger, livestreamUseCase *usecase.LivestreamUsecase) *LivestreamController {
+func NewLivestreamController(log logger.Logger, livestreamUseCase *usecase.LivestreamUsecase, jwtUtil jwtInterface.JWTGenerator) *LivestreamController {
 	controller := &LivestreamController{
 		Log:               log,
 		livestreamUseCase: livestreamUseCase,
+		jwtUtil:           jwtUtil,
 	}
 
 	return controller
@@ -198,8 +202,34 @@ func (c *LivestreamController) PingViewerCount(ctx *gin.Context) {
 		return
 	}
 
-	// Get anonymous_id from query parameter
-	anonymousID := ctx.Query("anonymous_id")
+	var anonymousID string
+
+	tokenStr, cookieErr := ctx.Cookie("anonymous_id")
+	if cookieErr == nil && tokenStr != "" {
+		anonClaims, parseErr := c.jwtUtil.ParseAnonymousViewerToken(tokenStr, config.AppConfig.JWT.SecretKey)
+		if parseErr == nil {
+			anonymousID = anonClaims.ViewerID
+		}
+	}
+
+	if anonymousID == "" {
+		clientIP := ctx.ClientIP()
+		anonymousID = util.GenerateViewerIDFromIP(clientIP, config.AppConfig.JWT.SecretKey)
+		newToken, _ := c.jwtUtil.GenerateAnonymousViewerToken(anonymousID, config.AppConfig.JWT.SecretKey)
+		sameSite := http.SameSiteStrictMode
+		if !config.AppConfig.Server.HTTPS {
+			sameSite = http.SameSiteLaxMode
+		}
+		http.SetCookie(ctx.Writer, &http.Cookie{
+			Name:     "anonymous_id",
+			Value:    newToken,
+			Path:     "/",
+			MaxAge:   86400,
+			HttpOnly: true,
+			Secure:   config.AppConfig.Server.HTTPS,
+			SameSite: sameSite,
+		})
+	}
 
 	viewerCount, err := c.livestreamUseCase.PingViewerCount(ctx, claims.Role, id, claims.UserID, anonymousID)
 	if err != nil {

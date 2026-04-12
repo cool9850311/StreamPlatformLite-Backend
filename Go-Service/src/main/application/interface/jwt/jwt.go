@@ -9,4 +9,6 @@ import (
 type JWTGenerator interface {
 	GenerateDiscordToken(ctx context.Context, discordId string, guildMemberData *dto.DiscordGuildMemberDTO, userRole role.Role, secretKey string) (string, error)
 	GenerateOriginToken(ctx context.Context, userID string, username string, userRole role.Role, secretKey string) (string, error)
+	GenerateAnonymousViewerToken(viewerID, secretKey string) (string, error)
+	ParseAnonymousViewerToken(tokenString, secretKey string) (*dto.AnonymousViewerClaims, error)
 }

@@ -81,7 +81,7 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	fileCache := cache.NewFileCache()
 	ffmpegLibrary := util.NewFfmpegLibrary()
 	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache, ffmpegLibrary)
-	livestreamController := controller.NewLivestreamController(log, livestreamUseCase)
+	livestreamController := controller.NewLivestreamController(log, livestreamUseCase, jwtGenerator)
 	accountRepo := repository.NewMongoAccountRepository(db)
 	originAccountUseCase := usecase.NewOriginAccountUseCase(accountRepo, log, bcrypt, config.AppConfig, jwtGenerator)
 	originAccountController := controller.NewOriginAccountController(log, originAccountUseCase)
