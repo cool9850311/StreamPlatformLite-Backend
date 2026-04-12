@@ -1,22 +1,26 @@
-# Use the official Golang image as the base image
 FROM golang:1.26-alpine
-RUN apk add --no-cache ffmpeg
+
+RUN apk add --no-cache ffmpeg su-exec
+
+# Create non-root user before building
+RUN adduser -D -u 1001 appuser
 
 WORKDIR /app
-
 COPY . .
+
 WORKDIR /app/Go-Service
-# Download all dependencies. Dependencies will be cached if the go.mod and go.sum files are not changed
 RUN go mod download
-
-# Copy the source from the current directory to the Working Directory inside the container
-
-
-# Build the Go app
 RUN go build -o main src/main/main.go
 
-# Expose port 8080 to the outside world
+# Give appuser ownership of the working directory so it can write application.log
+RUN chown -R appuser:appuser /app/Go-Service
+
+RUN chmod +x /app/entrypoint.sh
+
 EXPOSE 8080
 
-# Command to run the executable
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["./main"]

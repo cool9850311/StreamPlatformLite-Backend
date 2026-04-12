@@ -14,6 +14,7 @@ import (
 	"Go-Service/src/main/infrastructure/repository"
 	"Go-Service/src/main/infrastructure/util"
 	"fmt"
+	"net/http"
 
 	// "github.com/gin-contrib/cors"
 	"github.com/gin-contrib/cors"
@@ -85,6 +86,11 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	accountRepo := repository.NewMongoAccountRepository(db)
 	originAccountUseCase := usecase.NewOriginAccountUseCase(accountRepo, log, bcrypt, config.AppConfig, jwtGenerator)
 	originAccountController := controller.NewOriginAccountController(log, originAccountUseCase)
+
+	// Health check — public, no auth, used by Docker HEALTHCHECK
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
 
 	login := r.Group("/")
 	{
