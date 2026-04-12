@@ -4,9 +4,9 @@ import (
 	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
+	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -15,21 +15,11 @@ import (
 // JWTAuthMiddleware handles JWT authentication and authorization
 func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var tokenString string
-
-		// Try to get token from Cookie first (preferred method)
-		cookie, err := c.Cookie("token")
-		if err == nil && cookie != "" {
-			tokenString = cookie
-		} else {
-			// Fallback to Authorization header for backward compatibility
-			tokenString = c.GetHeader("Authorization")
-			if tokenString == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{"message": "Missing token"})
-				c.Abort()
-				return
-			}
-			tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+		tokenString, err := c.Cookie("token")
+		if err != nil || tokenString == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Missing token"})
+			c.Abort()
+			return
 		}
 
 		claims := &dto.Claims{}
@@ -49,6 +39,16 @@ func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 
 		// Also store user_id in Gin context for rate limiting middleware
 		c.Set("user_id", claims.UserID)
+
+		// CSRF: enforce on all state-changing methods
+		safeMethod := c.Request.Method == "GET" || c.Request.Method == "HEAD" || c.Request.Method == "OPTIONS"
+		if !safeMethod {
+			csrfToken := c.GetHeader("X-XSRF-TOKEN")
+			if csrfToken == "" || !util.ValidateCsrfToken(csrfToken, config.AppConfig.JWT.SecretKey, claims.UserID) {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "invalid CSRF token"})
+				return
+			}
+		}
 
 		c.Next()
 	}
