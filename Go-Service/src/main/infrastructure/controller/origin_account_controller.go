@@ -8,6 +8,7 @@ import (
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/message"
+	"Go-Service/src/main/infrastructure/util"
 	"fmt"
 	"net/http"
 
@@ -188,6 +189,11 @@ func (c *OriginAccountController) GetMe(ctx *gin.Context) {
 		return
 	}
 
+	csrfToken, err := util.GenerateCsrfToken(config.AppConfig.JWT.SecretKey, claims.UserID)
+	if err != nil {
+		csrfToken = ""
+	}
+
 	// 返回当前用户信息（包括Anonymous用户）
 	// 前端可以通过role字段判断用户类型
 	ctx.JSON(http.StatusOK, gin.H{
@@ -196,6 +202,7 @@ func (c *OriginAccountController) GetMe(ctx *gin.Context) {
 		"avatar":            claims.Avatar,
 		"role":              claims.Role,
 		"identity_provider": claims.IdentityProvider,
+		"csrf_token":        csrfToken,
 	})
 }
 
