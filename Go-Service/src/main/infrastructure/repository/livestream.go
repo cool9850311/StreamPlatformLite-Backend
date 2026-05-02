@@ -2,62 +2,115 @@ package repository
 
 import (
 	"Go-Service/src/main/application/interface/repository"
-	"Go-Service/src/main/domain/entity/errors"
+	domainErrors "Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
-	"context"
+	"Go-Service/src/main/infrastructure/repository/model"
+	"errors"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/lib/pq"
+	"gorm.io/gorm"
 )
 
-type MongoLivestreamRepository struct {
-	collection *mongo.Collection
+type PostgresLivestreamRepository struct {
+	db *gorm.DB
 }
 
-func NewMongoLivestreamRepository(db *mongo.Database) repository.LivestreamRepository {
-	return &MongoLivestreamRepository{
-		collection: db.Collection("livestreams"),
+func NewPostgresLivestreamRepository(db *gorm.DB) repository.LivestreamRepository {
+	return &PostgresLivestreamRepository{db: db}
+}
+
+func toLivestreamEntity(m model.LivestreamModel) *livestream.Livestream {
+	return &livestream.Livestream{
+		UUID:        m.UUID,
+		Name:        m.Name,
+		APIKey:      m.APIKey,
+		OwnerUserId: m.OwnerUserID,
+		Visibility:  livestream.Visibility(m.Visibility),
+		Title:       m.Title,
+		Information: m.Information,
+		BanList:     []string(m.BanList),
+		MuteList:    []string(m.MuteList),
+		IsRecord:    m.IsRecord,
 	}
 }
 
-func (r *MongoLivestreamRepository) GetByID(id string) (*livestream.Livestream, error) {
-	var ls livestream.Livestream
-	err := r.collection.FindOne(context.Background(), bson.M{"uuid": id}).Decode(&ls)
-	return &ls, err
-}
-
-func (r *MongoLivestreamRepository) GetByOwnerID(ownerID string) (*livestream.Livestream, error) {
-	var ls livestream.Livestream
-	err := r.collection.FindOne(context.Background(), bson.M{"owneruserid": ownerID}).Decode(&ls)
-	return &ls, err
-}
-
-func (r *MongoLivestreamRepository) GetOne() (*livestream.Livestream, error) {
-	var ls livestream.Livestream
-	err := r.collection.FindOne(context.Background(), bson.M{}).Decode(&ls)
-	if err == mongo.ErrNoDocuments {
-		return nil, errors.ErrNotFound
+func toModel(ls *livestream.Livestream) model.LivestreamModel {
+	banList := ls.BanList
+	if banList == nil {
+		banList = []string{}
 	}
-	return &ls, err
+	muteList := ls.MuteList
+	if muteList == nil {
+		muteList = []string{}
+	}
+	return model.LivestreamModel{
+		UUID:        ls.UUID,
+		Name:        ls.Name,
+		APIKey:      ls.APIKey,
+		OwnerUserID: ls.OwnerUserId,
+		Visibility:  string(ls.Visibility),
+		Title:       ls.Title,
+		Information: ls.Information,
+		BanList:     pq.StringArray(banList),
+		MuteList:    pq.StringArray(muteList),
+		IsRecord:    ls.IsRecord,
+	}
 }
 
-func (r *MongoLivestreamRepository) Create(ls *livestream.Livestream) error {
-	_, err := r.collection.InsertOne(context.Background(), ls)
-	return err
+func (r *PostgresLivestreamRepository) GetByID(id string) (*livestream.Livestream, error) {
+	var m model.LivestreamModel
+	result := r.db.Where("uuid = ?", id).First(&m)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, domainErrors.ErrNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return toLivestreamEntity(m), nil
 }
 
-func (r *MongoLivestreamRepository) Update(ls *livestream.Livestream) error {
-	_, err := r.collection.UpdateOne(context.Background(), bson.M{"uuid": ls.UUID}, bson.M{"$set": ls})
-	return err
+func (r *PostgresLivestreamRepository) GetByOwnerID(ownerID string) (*livestream.Livestream, error) {
+	var m model.LivestreamModel
+	result := r.db.Where("owner_user_id = ?", ownerID).First(&m)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, domainErrors.ErrNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return toLivestreamEntity(m), nil
 }
 
-func (r *MongoLivestreamRepository) Delete(id string) error {
-	_, err := r.collection.DeleteOne(context.Background(), bson.M{"uuid": id})
-	return err
+func (r *PostgresLivestreamRepository) GetOne() (*livestream.Livestream, error) {
+	var m model.LivestreamModel
+	result := r.db.First(&m)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, domainErrors.ErrNotFound
+	}
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return toLivestreamEntity(m), nil
 }
-func (r *MongoLivestreamRepository) MuteUser(identityProvider string, livestreamUUID string, userID string) error {
-	// Add the userID to the MuteList array
-	update := bson.M{"$addToSet": bson.M{"mutelist": identityProvider + "-" + userID}}
-	_, err := r.collection.UpdateOne(context.Background(), bson.M{"uuid": livestreamUUID}, update)
-	return err
+
+func (r *PostgresLivestreamRepository) Create(ls *livestream.Livestream) error {
+	m := toModel(ls)
+	return r.db.Create(&m).Error
+}
+
+func (r *PostgresLivestreamRepository) Update(ls *livestream.Livestream) error {
+	m := toModel(ls)
+	return r.db.Where("uuid = ?", ls.UUID).Save(&m).Error
+}
+
+func (r *PostgresLivestreamRepository) Delete(id string) error {
+	return r.db.Where("uuid = ?", id).Delete(&model.LivestreamModel{}).Error
+}
+
+func (r *PostgresLivestreamRepository) MuteUser(identityProvider string, livestreamUUID string, userID string) error {
+	muteEntry := identityProvider + "-" + userID
+	return r.db.Exec(
+		"UPDATE livestreams SET mute_list = array_append(mute_list, ?) WHERE uuid = ? AND NOT (? = ANY(mute_list))",
+		muteEntry, livestreamUUID, muteEntry,
+	).Error
 }

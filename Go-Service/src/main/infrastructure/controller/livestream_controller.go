@@ -117,7 +117,6 @@ func (c *LivestreamController) GetLivestreamOne(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
-
 	ctx.JSON(http.StatusOK, livestream)
 }
 

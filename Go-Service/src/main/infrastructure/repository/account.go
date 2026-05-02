@@ -3,95 +3,71 @@ package repository
 import (
 	"Go-Service/src/main/application/interface/repository"
 	"Go-Service/src/main/domain/entity/account"
-	"context"
-	"log"
-
-	"Go-Service/src/main/domain/entity/errors"
-
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	domainErrors "Go-Service/src/main/domain/entity/errors"
+	"Go-Service/src/main/domain/entity/role"
+	"Go-Service/src/main/infrastructure/repository/model"
+	"errors"
+	"gorm.io/gorm"
 )
 
-type MongoAccountRepository struct {
-	collection *mongo.Collection
+type PostgresAccountRepository struct {
+	db *gorm.DB
 }
 
-func NewMongoAccountRepository(db *mongo.Database) repository.AccountRepository {
-	collection := db.Collection("accounts")
-
-	// Create a unique index on the username field
-	indexModel := mongo.IndexModel{
-		Keys:    bson.D{{"username", 1}}, // 1 for ascending order
-		Options: options.Index().SetUnique(true),
-	}
-
-	_, err := collection.Indexes().CreateOne(context.TODO(), indexModel)
-	if err != nil {
-		// Handle the error according to your application's needs
-		log.Fatalf("Failed to create index: %v", err)
-	}
-
-	return &MongoAccountRepository{
-		collection: collection,
-	}
+func NewPostgresAccountRepository(db *gorm.DB) repository.AccountRepository {
+	return &PostgresAccountRepository{db: db}
 }
 
-func (r *MongoAccountRepository) Create(acc account.Account) error {
-	acc.ID = primitive.NewObjectID().Hex()
-	_, err := r.collection.InsertOne(context.TODO(), acc)
-	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
-			return errors.ErrDuplicate
-		}
-		return err
+func (r *PostgresAccountRepository) Create(acc account.Account) error {
+	m := model.AccountModel{
+		Username: acc.Username,
+		Password: acc.Password,
+		Role:     int8(acc.Role),
 	}
-	return err
+	return r.db.Create(&m).Error
 }
 
-func (r *MongoAccountRepository) GetAll() ([]account.Account, error) {
-	var accounts []account.Account
-	cursor, err := r.collection.Find(context.TODO(), bson.D{})
-	if err != nil {
+func (r *PostgresAccountRepository) GetAll() ([]account.Account, error) {
+	var models []model.AccountModel
+	if err := r.db.Find(&models).Error; err != nil {
 		return nil, err
 	}
-	defer cursor.Close(context.TODO())
-
-	for cursor.Next(context.TODO()) {
-		var acc account.Account
-		if err := cursor.Decode(&acc); err != nil {
-			return nil, err
+	accounts := make([]account.Account, len(models))
+	for i, m := range models {
+		accounts[i] = account.Account{
+			ID:       m.ID,
+			Username: m.Username,
+			Password: m.Password,
+			Role:     role.Role(m.Role),
 		}
-		accounts = append(accounts, acc)
 	}
-
-	if err := cursor.Err(); err != nil {
-		return nil, err
-	}
-
 	return accounts, nil
 }
 
-func (r *MongoAccountRepository) GetByUsername(username string) (*account.Account, error) {
-	var acc account.Account
-	filter := bson.D{{"username", username}}
-	err := r.collection.FindOne(context.TODO(), filter).Decode(&acc)
-	if err == mongo.ErrNoDocuments {
-		return nil, errors.ErrNotFound
+func (r *PostgresAccountRepository) GetByUsername(username string) (*account.Account, error) {
+	var m model.AccountModel
+	result := r.db.Where("username = ?", username).First(&m)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, domainErrors.ErrNotFound
 	}
-	return &acc, err
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &account.Account{
+		ID:       m.ID,
+		Username: m.Username,
+		Password: m.Password,
+		Role:     role.Role(m.Role),
+	}, nil
 }
 
-func (r *MongoAccountRepository) Update(acc account.Account) error {
-	filter := bson.D{{"username", acc.Username}}
-	update := bson.D{{"$set", acc}}
-	_, err := r.collection.UpdateOne(context.TODO(), filter, update)
-	return err
+func (r *PostgresAccountRepository) Update(acc account.Account) error {
+	return r.db.Model(&model.AccountModel{}).Where("username = ?", acc.Username).Updates(map[string]interface{}{
+		"password": acc.Password,
+		"role":     int8(acc.Role),
+	}).Error
 }
 
-func (r *MongoAccountRepository) Delete(username string) error {
-	filter := bson.D{{"username", username}}
-	_, err := r.collection.DeleteOne(context.TODO(), filter)
-	return err
+func (r *PostgresAccountRepository) Delete(username string) error {
+	return r.db.Where("username = ?", username).Delete(&model.AccountModel{}).Error
 }

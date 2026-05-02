@@ -59,10 +59,10 @@ func TestOriginAccountUseCase_Login_Success(t *testing.T) {
 	setup := setupOriginAccount()
 	ctx := context.Background()
 
-	mockAccount := &account.Account{ID: "testuser", Username: "testuser", Password: "hashedpassword", Role: role.User}
+	mockAccount := &account.Account{ID: 1, Username: "testuser", Password: "hashedpassword", Role: role.User}
 	setup.MockRepo.On("GetByUsername", "testuser").Return(mockAccount, nil)
 	setup.MockBcrypt.On("CheckPasswordHash", "password", "hashedpassword").Return(true)
-	setup.MockJWTGenerator.On("GenerateOriginToken", ctx, mockAccount.ID, mockAccount.Username, role.User, mock.Anything).Return("mockToken", nil)
+	setup.MockJWTGenerator.On("GenerateOriginToken", ctx, "1", mockAccount.Username, role.User, mock.Anything).Return("mockToken", nil)
 
 	redirectURL, err := setup.UseCase.Login(ctx, "testuser", "password")
 
@@ -342,7 +342,7 @@ func TestOriginAccountUseCase_Login_AdminRoleNotAllowed(t *testing.T) {
 	ctx := context.Background()
 
 	// Mock an account with Admin role (e.g., created directly in DB)
-	mockAccount := &account.Account{ID: "adminuser", Username: "adminuser", Password: "hashedpassword", Role: role.Admin}
+	mockAccount := &account.Account{ID: 1, Username: "adminuser", Password: "hashedpassword", Role: role.Admin}
 	setup.MockRepo.On("GetByUsername", "adminuser").Return(mockAccount, nil)
 
 	token, err := setup.UseCase.Login(ctx, "adminuser", "password")
