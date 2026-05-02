@@ -52,7 +52,7 @@ func (uc *OriginAccountUseCase) Login(ctx context.Context, username, password st
 		uc.log.Error(ctx, "Login failed CheckPasswordHash: ")
 		return "", innerErrors.ErrPassword
 	}
-	token, err := uc.generateToken(ctx, acc.ID, username, acc.Role)
+	token, err := uc.generateToken(ctx, strconv.FormatUint(uint64(acc.ID), 10), username, acc.Role)
 	if err != nil {
 		return token, err
 	}

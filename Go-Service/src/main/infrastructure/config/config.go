@@ -26,6 +26,15 @@ func getEnvAsBool(key string, defaultValue bool) bool {
 	return value
 }
 
+// getEnvOrDefault reads an environment variable as a string with a default value
+func getEnvOrDefault(key string, defaultValue string) string {
+	valueStr := os.Getenv(key)
+	if valueStr == "" {
+		return defaultValue
+	}
+	return valueStr
+}
+
 // getEnvAsInt64 reads an environment variable as int64 with a default value
 func getEnvAsInt64(key string, defaultValue int64) int64 {
 	valueStr := os.Getenv(key)
@@ -57,8 +66,12 @@ func LoadConfig() {
 		log.Fatalf("Invalid SERVER_PORT: %s", err)
 	}
 	AppConfig.Server.Port = port
-	AppConfig.MongoDB.URI = os.Getenv("MONGODB_URI")
-	AppConfig.MongoDB.Database = os.Getenv("MONGODB_DATABASE")
+	dsn := os.Getenv("POSTGRESQL_DSN")
+	if dsn == "" {
+		log.Fatal("POSTGRESQL_DSN is required")
+	}
+	AppConfig.PostgreSQL.DSN = dsn
+	AppConfig.PostgreSQL.AutoMigrateSchema = getEnvAsBool("SCHEMA_AUTO_MIGRATE", true)
 	AppConfig.JWT.SecretKey = os.Getenv("APP_SECRET_KEY")
 	AppConfig.Discord.ClientID = os.Getenv("DISCORD_CLIENT_ID")
 	AppConfig.Discord.ClientSecret = os.Getenv("DISCORD_CLIENT_SECRET")

@@ -3,51 +3,44 @@ package repository
 import (
 	"Go-Service/src/main/application/interface/repository"
 	"Go-Service/src/main/domain/entity/system"
-	"context"
+	"Go-Service/src/main/infrastructure/repository/model"
+	"errors"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/lib/pq"
+	"gorm.io/gorm"
 )
 
-type MongoSystemSettingRepository struct {
-	collection *mongo.Collection
+type PostgresSystemSettingRepository struct {
+	db *gorm.DB
 }
 
-func NewMongoSystemSettingRepository(db *mongo.Database) repository.SystemSettingRepository {
-	return &MongoSystemSettingRepository{
-		collection: db.Collection("system_settings"),
-	}
+func NewPostgresSystemSettingRepository(db *gorm.DB) repository.SystemSettingRepository {
+	return &PostgresSystemSettingRepository{db: db}
 }
 
-func (r *MongoSystemSettingRepository) GetSetting() (*system.Setting, error) {
-	var setting system.Setting
-	err := r.collection.FindOne(context.Background(), bson.M{}).Decode(&setting)
-	if err == mongo.ErrNoDocuments {
-		// Return default settings if not found
-		defaultSetting := &system.Setting{
+func (r *PostgresSystemSettingRepository) GetSetting() (*system.Setting, error) {
+	var m model.SystemSettingModel
+	result := r.db.First(&m)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return &system.Setting{
 			EditorRoleId:        "",
 			StreamAccessRoleIds: []string{},
-		}
-		return defaultSetting, nil
+		}, nil
 	}
-	return &setting, err
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &system.Setting{
+		EditorRoleId:        m.EditorRoleID,
+		StreamAccessRoleIds: []string(m.StreamAccessRoleIDs),
+	}, nil
 }
 
-func (r *MongoSystemSettingRepository) SetSetting(setting *system.Setting) error {
-	// Check if a setting document exists
-	count, err := r.collection.CountDocuments(context.Background(), bson.M{})
-	if err != nil {
-		return err
+func (r *PostgresSystemSettingRepository) SetSetting(setting *system.Setting) error {
+	m := model.SystemSettingModel{
+		ID:                  1,
+		EditorRoleID:        setting.EditorRoleId,
+		StreamAccessRoleIDs: pq.StringArray(setting.StreamAccessRoleIds),
 	}
-
-	// If no document exists, insert a new one
-	if count == 0 {
-		_, err = r.collection.InsertOne(context.Background(), setting)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	_, errr := r.collection.UpdateOne(context.Background(), bson.M{}, bson.M{"$set": setting})
-	return errr
+	return r.db.Save(&m).Error
 }

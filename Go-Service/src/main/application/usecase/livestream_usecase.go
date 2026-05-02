@@ -15,6 +15,7 @@ import (
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/util"
 	"context"
+	goErrors "errors"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -168,7 +169,6 @@ func (u *LivestreamUsecase) GetOne(ctx context.Context, userRole role.Role) (*li
 		u.Log.Error(ctx, "Error getting livestream: "+err.Error())
 		return nil, err
 	}
-
 	// 根据Visibility检查访问权限
 	if err := u.checkViewAccess(userRole, livestream.Visibility); err != nil {
 		u.Log.Warn(ctx, "Unauthorized access to GetOne, role: "+userRole.String()+", visibility: "+string(livestream.Visibility))
@@ -198,8 +198,12 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 		u.Log.Error(ctx, "Unauthorized access to CreateLivestream")
 		return nil, err
 	}
-	_, err := u.LivestreamRepo.GetOne()
-	if err == nil {
+	existing, err := u.LivestreamRepo.GetOne()
+	if err != nil && !goErrors.Is(err, errors.ErrNotFound) {
+		u.Log.Error(ctx, "Error checking existing livestream: "+err.Error())
+		return nil, err
+	}
+	if existing != nil {
 		u.Log.Error(ctx, "Livestream already exists")
 		return nil, errors.ErrExists
 	}

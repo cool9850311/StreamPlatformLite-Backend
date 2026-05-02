@@ -13,16 +13,19 @@ import (
 	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"log"
-	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+	migrations "Go-Service/migrations"
 )
 
-var Client *mongo.Client
-var DB *mongo.Database
+var GormDB *gorm.DB
 var Log domainLogger.Logger
 var LiveStreamService stream.ILivestreamService
 var RedisClient *redis.Client
@@ -43,34 +46,41 @@ func InitConfig() {
 	config.LoadConfig()
 }
 
-func InitMongoClient() {
-	// Load the URI from the config
-	uri := config.AppConfig.MongoDB.URI
-
-	// Create client options
-	clientOptions := options.Client().ApplyURI(uri)
-
-	// Create a new client and connect to the server
-	client, err := mongo.Connect(context.TODO(), clientOptions)
-	if err != nil {
-		log.Fatalf("Failed to create MongoDB client: %v", err)
+func InitSchema() {
+	if !config.AppConfig.PostgreSQL.AutoMigrateSchema {
+		log.Println("[schema] Auto-migrate disabled, skipping")
+		return
 	}
-
-	// Context with timeout to use for ping and initial connection check
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Ping the primary to verify connectivity
-	err = client.Ping(ctx, nil)
+	d, err := iofs.New(migrations.FS, ".")
 	if err != nil {
-		log.Fatalf("Failed to ping MongoDB: %v", err)
+		log.Fatalf("failed to create migration source: %v", err)
 	}
+	m, err := migrate.NewWithSourceInstance("iofs", d, config.AppConfig.PostgreSQL.DSN)
+	if err != nil {
+		log.Fatalf("failed to create migrator: %v", err)
+	}
+	defer m.Close()
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("schema migration failed: %v", err)
+	}
+	log.Println("[schema] Schema migration done.")
+}
 
-	log.Println("Connected to MongoDB!")
-
-	// Assign the client and database to global variables
-	Client = client
-	DB = client.Database(config.AppConfig.MongoDB.Database)
+func InitPostgresClient() {
+	dsn := config.AppConfig.PostgreSQL.DSN
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("Failed to get sql.DB: %v", err)
+	}
+	if err := sqlDB.Ping(); err != nil {
+		log.Fatalf("Failed to ping PostgreSQL: %v", err)
+	}
+	GormDB = db
+	log.Println("Connected to PostgreSQL")
 }
 
 func InitRedisClient() {
@@ -81,7 +91,7 @@ func InitRedisClient() {
 	})
 }
 
-func InitLiveStreamService(log domainLogger.Logger, db *mongo.Database) {
+func InitLiveStreamService(log domainLogger.Logger, db *gorm.DB) {
 	LiveStreamService = livestream.NewLivestreamService(log)
 
 	// Start the service
@@ -97,10 +107,10 @@ func InitLiveStreamService(log domainLogger.Logger, db *mongo.Database) {
 			log.Fatal(context.TODO(), "RunLoop error: "+err.Error())
 		}
 	}()
-	livestreamRepo := repository.NewMongoLivestreamRepository(db)
+	livestreamRepo := repository.NewPostgresLivestreamRepository(db)
 	result, err := livestreamRepo.GetOne()
 	if err != nil {
-		log.Info(context.TODO(), "No Stream Found"+err.Error())
+		log.Info(context.TODO(), "No Stream Found: "+err.Error())
 		return
 	}
 	LiveStreamService.OpenStream(result.Name, result.UUID, result.APIKey, result.IsRecord)
@@ -111,22 +121,22 @@ func InitLiveStreamService(log domainLogger.Logger, db *mongo.Database) {
 	// LiveStreamService.OpenStream("test1", "test2", "test")
 	// LiveStreamService.CloseStream("test2")
 }
-func InitCronJob(log domainLogger.Logger, db *mongo.Database) {
+func InitCronJob(log domainLogger.Logger, db *gorm.DB) {
 	cronJob = cron.New()
 	viewerCountCache := cache.NewRedisViewerCount(RedisClient)
 	chatCache := cache.NewRedisChat(RedisClient)
 	fileCache := cache.NewFileCache()
 	ffmpegLibrary := util.NewFfmpegLibrary()
-	livestreamRepo := repository.NewMongoLivestreamRepository(db)
+	livestreamRepo := repository.NewPostgresLivestreamRepository(db)
 	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, LiveStreamService, viewerCountCache, chatCache, fileCache, ffmpegLibrary)
 	cronJob.AddFunc("@every 10s", func() {
 		log.Info(context.Background(), "Running viewer count cleanup")
-		uuid, err := livestreamRepo.GetOne()
+		ls, err := livestreamRepo.GetOne()
 		if err != nil {
 			log.Error(context.Background(), "Error fetching livestream: "+err.Error())
 			return
 		}
-		livestreamUseCase.RemoveViewerCount(context.Background(), uuid.UUID, 10)
+		livestreamUseCase.RemoveViewerCount(context.Background(), ls.UUID, 10)
 	})
 
 	cronJob.Start()

@@ -20,10 +20,10 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/mongo"
+	"gorm.io/gorm"
 )
 
-func NewRouter(db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {
+func NewRouter(db *gorm.DB, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) *gin.Engine {
 	r := setupRouter()
 	setupMiddlewares(r)
 	setupRoutes(r, db, log, liveStreamService, redisClient)
@@ -62,12 +62,12 @@ func setupMiddlewares(r *gin.Engine) {
 	r.Use(middleware.TraceIDMiddleware())
 }
 
-func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) {
+func setupRoutes(r *gin.Engine, db *gorm.DB, log logger.Logger, liveStreamService stream.ILivestreamService, redisClient *redis.Client) {
 	// Initialize rate limiters
 	initializer.InitRateLimiters()
 
 	// Initialize repositories, use cases, and controllers
-	systemSettingRepo := repository.NewMongoSystemSettingRepository(db)
+	systemSettingRepo := repository.NewPostgresSystemSettingRepository(db)
 	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
 	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)
 	discordOAuthOuterApi := discord.NewDiscordOAuthImpl(log)
@@ -76,14 +76,14 @@ func setupRoutes(r *gin.Engine, db *mongo.Database, log logger.Logger, liveStrea
 	stateStore := util.NewRedisStateStore(redisClient)
 	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator, stateStore)
 	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
-	livestreamRepo := repository.NewMongoLivestreamRepository(db)
+	livestreamRepo := repository.NewPostgresLivestreamRepository(db)
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
 	chatCache := cache.NewRedisChat(redisClient)
 	fileCache := cache.NewFileCache()
 	ffmpegLibrary := util.NewFfmpegLibrary()
 	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache, ffmpegLibrary)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase, jwtGenerator)
-	accountRepo := repository.NewMongoAccountRepository(db)
+	accountRepo := repository.NewPostgresAccountRepository(db)
 	originAccountUseCase := usecase.NewOriginAccountUseCase(accountRepo, log, bcrypt, config.AppConfig, jwtGenerator)
 	originAccountController := controller.NewOriginAccountController(log, originAccountUseCase)
 

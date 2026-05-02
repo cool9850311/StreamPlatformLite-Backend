@@ -12,10 +12,10 @@ type Config struct {
 		Domain string `mapstructure:"domain"`
 		Port   int    `mapstructure:"port"`
 	} `mapstructure:"frontend"`
-	MongoDB struct {
-		URI      string `mapstructure:"uri"`
-		Database string `mapstructure:"database"`
-	} `mapstructure:"mongodb"`
+	PostgreSQL struct {
+		DSN               string `mapstructure:"dsn"`
+		AutoMigrateSchema bool
+	} `mapstructure:"postgresql"`
 	JWT struct {
 		SecretKey string `mapstructure:"secretKey"`
 	} `mapstructure:"JWT"`
