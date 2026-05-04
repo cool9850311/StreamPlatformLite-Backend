@@ -6,7 +6,9 @@ RUN apk add --no-cache ffmpeg su-exec
 RUN adduser -D -u 1001 appuser
 
 WORKDIR /app
-COPY . .
+# Context is the parent directory of both repos; copy backend and core-service
+COPY StreamPlatformLite-Backend/ .
+COPY StreamPlatformLite-Core/ /StreamPlatformLite-Core/
 
 WORKDIR /app/Go-Service
 RUN go mod download

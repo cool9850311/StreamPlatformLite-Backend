@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"Go-Service/src/main/application/dto"
 	livestreamDTO "Go-Service/src/main/application/dto/livestream"
 	jwtInterface "Go-Service/src/main/application/interface/jwt"
 	"Go-Service/src/main/application/usecase"
@@ -18,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 
+	claims "github.com/cool9850311/StreamPlatformLite-Core/pkg/claims"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,19 +38,19 @@ func NewLivestreamController(log logger.Logger, livestreamUseCase *usecase.Lives
 }
 
 // getClaims safely extracts claims from context
-func (c *LivestreamController) getClaims(ctx *gin.Context) (*dto.Claims, error) {
+func (c *LivestreamController) getClaims(ctx *gin.Context) (*claims.Claims, error) {
 	claimsValue := ctx.Request.Context().Value("claims")
 	if claimsValue == nil {
 		return nil, errors.ErrUnauthorized
 	}
 
-	claims, ok := claimsValue.(*dto.Claims)
+	cl, ok := claimsValue.(*claims.Claims)
 	if !ok {
 		c.Log.Error(ctx, "Failed to assert claims type")
 		return nil, errors.ErrInternal
 	}
 
-	return claims, nil
+	return cl, nil
 }
 func (c *LivestreamController) GetLivestreamByID(ctx *gin.Context) {
 	id := ctx.Param("uuid")

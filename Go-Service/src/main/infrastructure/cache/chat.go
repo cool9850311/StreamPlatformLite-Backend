@@ -3,7 +3,7 @@ package cache
 import (
 	"Go-Service/src/main/application/interface/cache"
 	"Go-Service/src/main/domain/entity/chat"
-	"Go-Service/src/main/domain/entity/role"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"context"
 	"strconv"
 

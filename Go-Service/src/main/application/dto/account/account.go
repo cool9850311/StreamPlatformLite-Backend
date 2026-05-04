@@ -1,6 +1,6 @@
 package dto
 
-import "Go-Service/src/main/domain/entity/role"
+import "github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 
 type AccountListDTO struct {
 	Username string    `json:"username"`

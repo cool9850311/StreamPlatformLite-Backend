@@ -3,6 +3,7 @@ module Go-Service
 go 1.26
 
 require (
+	github.com/cool9850311/StreamPlatformLite-Core v0.0.0
 	github.com/cool9850311/lal-StreamPlatformLite v0.37.16
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-contrib/secure v1.1.3
@@ -17,7 +18,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	github.com/ulule/limiter/v3 v3.11.2
-	golang.org/x/crypto v0.48.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
 )
@@ -60,6 +60,7 @@ require (
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
+	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
@@ -67,3 +68,5 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/cool9850311/StreamPlatformLite-Core => ../../StreamPlatformLite-Core
