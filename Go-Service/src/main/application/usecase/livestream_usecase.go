@@ -9,7 +9,7 @@ import (
 	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
-	"Go-Service/src/main/domain/entity/role"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"Go-Service/src/main/domain/interface/file_cache"
 	"Go-Service/src/main/domain/interface/libarary/ffmpeg"
 	"Go-Service/src/main/domain/interface/logger"

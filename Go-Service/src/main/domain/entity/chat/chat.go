@@ -1,6 +1,6 @@
 package chat
 
-import "Go-Service/src/main/domain/entity/role"
+import "github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 
 type Chat struct {
 	ID       string    `json:"id"`

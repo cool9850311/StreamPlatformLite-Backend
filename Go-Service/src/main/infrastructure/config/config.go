@@ -73,10 +73,6 @@ func LoadConfig() {
 	AppConfig.PostgreSQL.DSN = dsn
 	AppConfig.PostgreSQL.AutoMigrateSchema = getEnvAsBool("SCHEMA_AUTO_MIGRATE", true)
 	AppConfig.JWT.SecretKey = os.Getenv("APP_SECRET_KEY")
-	AppConfig.Discord.ClientID = os.Getenv("DISCORD_CLIENT_ID")
-	AppConfig.Discord.ClientSecret = os.Getenv("DISCORD_CLIENT_SECRET")
-	AppConfig.Discord.AdminID = os.Getenv("DISCORD_ADMIN_ID")
-	AppConfig.Discord.GuildID = os.Getenv("DISCORD_GUILD_ID")
 	AppConfig.Server.Domain = os.Getenv("DOMAIN")
 	AppConfig.Frontend.Domain = os.Getenv("FRONTEND_DOMAIN")
 	AppConfig.Frontend.Port = int(getEnvAsInt64("FRONTEND_PORT", 3000))
@@ -99,10 +95,6 @@ func LoadConfig() {
 
 	// Load Rate Limiting configuration
 	AppConfig.RateLimit.Enabled = getEnvAsBool("RATE_LIMIT_ENABLED", true)
-	AppConfig.RateLimit.LoginPerMinute = getEnvAsInt64("RATE_LIMIT_LOGIN_PER_MINUTE", 5)
-	AppConfig.RateLimit.OAuthInitPerMinute = getEnvAsInt64("RATE_LIMIT_OAUTH_INIT_PER_MINUTE", 5)
-	AppConfig.RateLimit.LogoutPerMinute = getEnvAsInt64("RATE_LIMIT_LOGOUT_PER_MINUTE", 10)
 	AppConfig.RateLimit.ChatPostPerMinute = getEnvAsInt64("RATE_LIMIT_CHAT_POST_PER_MINUTE", 10)
 	AppConfig.RateLimit.ChatDeletePerMinute = getEnvAsInt64("RATE_LIMIT_CHAT_DELETE_PER_MINUTE", 10)
-	AppConfig.RateLimit.ChangePasswordPerHour = getEnvAsInt64("RATE_LIMIT_CHANGE_PASSWORD_PER_HOUR", 10)
 }

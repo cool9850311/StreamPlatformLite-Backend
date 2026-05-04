@@ -5,7 +5,7 @@ import (
 	livestreamDto "Go-Service/src/main/application/dto/livestream"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity/livestream"
-	"Go-Service/src/main/domain/entity/role"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"Go-Service/src/test/usecase/mock_data"
 	"context"
 	"path/filepath"

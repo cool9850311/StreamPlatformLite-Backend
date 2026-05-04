@@ -10,15 +10,9 @@ import (
 )
 
 var (
-	// IP-based limiters
-	LoginLimiter     *limiter.Limiter
-	OAuthInitLimiter *limiter.Limiter
-	LogoutLimiter    *limiter.Limiter
-
 	// User-based limiters
-	ChatPostLimiter       *limiter.Limiter
-	ChatDeleteLimiter     *limiter.Limiter
-	ChangePasswordLimiter *limiter.Limiter
+	ChatPostLimiter   *limiter.Limiter
+	ChatDeleteLimiter *limiter.Limiter
 )
 
 func InitRateLimiters() {
@@ -34,22 +28,6 @@ func InitRateLimiters() {
 		Log.Fatal(context.TODO(), "Failed to create Redis store for rate limiter: "+err.Error())
 	}
 
-	// IP-based limiters
-	LoginLimiter = limiter.New(store, limiter.Rate{
-		Period: 1 * time.Minute,
-		Limit:  config.AppConfig.RateLimit.LoginPerMinute,
-	})
-
-	OAuthInitLimiter = limiter.New(store, limiter.Rate{
-		Period: 1 * time.Minute,
-		Limit:  config.AppConfig.RateLimit.OAuthInitPerMinute,
-	})
-
-	LogoutLimiter = limiter.New(store, limiter.Rate{
-		Period: 1 * time.Minute,
-		Limit:  config.AppConfig.RateLimit.LogoutPerMinute,
-	})
-
 	// User-based limiters
 	ChatPostLimiter = limiter.New(store, limiter.Rate{
 		Period: 1 * time.Minute,
@@ -59,11 +37,6 @@ func InitRateLimiters() {
 	ChatDeleteLimiter = limiter.New(store, limiter.Rate{
 		Period: 1 * time.Minute,
 		Limit:  config.AppConfig.RateLimit.ChatDeletePerMinute,
-	})
-
-	ChangePasswordLimiter = limiter.New(store, limiter.Rate{
-		Period: 1 * time.Hour,
-		Limit:  config.AppConfig.RateLimit.ChangePasswordPerHour,
 	})
 
 	Log.Info(context.TODO(), "Rate limiters initialized successfully")

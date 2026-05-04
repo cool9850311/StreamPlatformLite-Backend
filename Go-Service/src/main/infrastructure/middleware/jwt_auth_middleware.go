@@ -1,13 +1,13 @@
 package middleware
 
 import (
-	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
-	"Go-Service/src/main/infrastructure/util"
 	"context"
 	"net/http"
 
+	claims "github.com/cool9850311/StreamPlatformLite-Core/pkg/claims"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/csrf"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -22,8 +22,8 @@ func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 			return
 		}
 
-		claims := &dto.Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		cl := &claims.Claims{}
+		token, err := jwt.ParseWithClaims(tokenString, cl, func(token *jwt.Token) (interface{}, error) {
 			return []byte(config.AppConfig.JWT.SecretKey), nil
 		})
 
@@ -34,17 +34,17 @@ func JWTAuthMiddleware(logger logger.Logger) gin.HandlerFunc {
 		}
 
 		// Store claims in context for later use
-		ctx := context.WithValue(c.Request.Context(), "claims", claims)
+		ctx := context.WithValue(c.Request.Context(), "claims", cl)
 		c.Request = c.Request.WithContext(ctx)
 
 		// Also store user_id in Gin context for rate limiting middleware
-		c.Set("user_id", claims.UserID)
+		c.Set("user_id", cl.UserID)
 
 		// CSRF: enforce on all state-changing methods
 		safeMethod := c.Request.Method == "GET" || c.Request.Method == "HEAD" || c.Request.Method == "OPTIONS"
 		if !safeMethod {
 			csrfToken := c.GetHeader("X-XSRF-TOKEN")
-			if csrfToken == "" || !util.ValidateCsrfToken(csrfToken, config.AppConfig.JWT.SecretKey, claims.UserID) {
+			if csrfToken == "" || !csrf.ValidateCsrfToken(csrfToken, config.AppConfig.JWT.SecretKey, cl.UserID) {
 				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "invalid CSRF token"})
 				return
 			}

@@ -10,7 +10,6 @@ import (
 	"Go-Service/src/main/infrastructure/controller"
 	"Go-Service/src/main/infrastructure/initializer"
 	"Go-Service/src/main/infrastructure/middleware"
-	"Go-Service/src/main/infrastructure/outer_api/discord"
 	"Go-Service/src/main/infrastructure/repository"
 	"Go-Service/src/main/infrastructure/util"
 	"fmt"
@@ -67,15 +66,7 @@ func setupRoutes(r *gin.Engine, db *gorm.DB, log logger.Logger, liveStreamServic
 	initializer.InitRateLimiters()
 
 	// Initialize repositories, use cases, and controllers
-	systemSettingRepo := repository.NewPostgresSystemSettingRepository(db)
-	systemSettingUseCase := usecase.NewSystemSettingUseCase(systemSettingRepo, log)
-	systemSettingController := controller.NewSystemSettingController(log, systemSettingUseCase)
-	discordOAuthOuterApi := discord.NewDiscordOAuthImpl(log)
 	jwtGenerator := util.NewJWTLibrary()
-	bcrypt := util.NewBcryptLibrary()
-	stateStore := util.NewRedisStateStore(redisClient)
-	discordLoginUseCase := usecase.NewDiscordLoginUseCase(systemSettingRepo, log, config.AppConfig, discordOAuthOuterApi, jwtGenerator, stateStore)
-	discordOauthController := controller.NewDiscordOauthController(log, discordLoginUseCase)
 	livestreamRepo := repository.NewPostgresLivestreamRepository(db)
 	viewerCountCache := cache.NewRedisViewerCount(redisClient)
 	chatCache := cache.NewRedisChat(redisClient)
@@ -83,37 +74,11 @@ func setupRoutes(r *gin.Engine, db *gorm.DB, log logger.Logger, liveStreamServic
 	ffmpegLibrary := util.NewFfmpegLibrary()
 	livestreamUseCase := usecase.NewLivestreamUsecase(livestreamRepo, log, config.AppConfig, liveStreamService, viewerCountCache, chatCache, fileCache, ffmpegLibrary)
 	livestreamController := controller.NewLivestreamController(log, livestreamUseCase, jwtGenerator)
-	accountRepo := repository.NewPostgresAccountRepository(db)
-	originAccountUseCase := usecase.NewOriginAccountUseCase(accountRepo, log, bcrypt, config.AppConfig, jwtGenerator)
-	originAccountController := controller.NewOriginAccountController(log, originAccountUseCase)
 
 	// Health check — public, no auth, used by Docker HEALTHCHECK
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
-
-	login := r.Group("/")
-	{
-		login.GET("/oauth/discord/init", middleware.RateLimitByIP(initializer.OAuthInitLimiter), discordOauthController.InitiateLogin)
-		login.GET("/oauth/discord", discordOauthController.Callback)
-		login.POST("/logout", middleware.RateLimitByIP(initializer.LogoutLimiter), discordOauthController.Logout)
-	}
-	r.GET("/me", middleware.OptionalJWTAuthMiddleware(log), originAccountController.GetMe)
-
-	originAccount := r.Group("/origin-account")
-	{
-		originAccount.POST("/login", middleware.RateLimitByIP(initializer.LoginLimiter), originAccountController.Login)
-		originAccount.POST("/create", middleware.JWTAuthMiddleware(log), originAccountController.CreateAccount)
-		originAccount.PATCH("/change-password", middleware.JWTAuthMiddleware(log), middleware.RateLimitByUserID(initializer.ChangePasswordLimiter), originAccountController.ChangePassword)
-		originAccount.GET("/list", middleware.JWTAuthMiddleware(log), originAccountController.GetAccountList)
-		originAccount.DELETE("/delete", middleware.JWTAuthMiddleware(log), originAccountController.DeleteAccount)
-	}
-
-	systemSettings := r.Group("/system-settings")
-	{
-		systemSettings.GET("", middleware.JWTAuthMiddleware(log), systemSettingController.GetSetting)
-		systemSettings.PATCH("", middleware.JWTAuthMiddleware(log), systemSettingController.SetSetting)
-	}
 
 	livestream := r.Group("/livestream")
 	{

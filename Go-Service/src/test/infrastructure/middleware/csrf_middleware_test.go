@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"Go-Service/src/main/application/dto"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/config"
 	"Go-Service/src/main/infrastructure/middleware"
-	"Go-Service/src/main/infrastructure/util"
 
+	claims "github.com/cool9850311/StreamPlatformLite-Core/pkg/claims"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/csrf"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -36,14 +36,14 @@ func init() {
 }
 
 func generateTestJWT(userID string) string {
-	claims := &dto.Claims{
+	cl := &claims.Claims{
 		UserID:   userID,
 		UserName: "Test User",
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		},
 	}
-	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(testSecret))
+	token, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, cl).SignedString([]byte(testSecret))
 	return token
 }
 
@@ -100,7 +100,7 @@ func TestJWTMiddleware_CSRF_WrongUser(t *testing.T) {
 	r := setupTestRouter(log)
 
 	jwtToken := generateTestJWT("test-user")
-	csrfToken, _ := util.GenerateCsrfToken(testSecret, "other-user")
+	csrfToken, _ := csrf.GenerateCsrfToken(testSecret, "other-user")
 	req := httptest.NewRequest("POST", "/test", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: jwtToken})
 	req.Header.Set("X-XSRF-TOKEN", csrfToken)
@@ -117,7 +117,7 @@ func TestJWTMiddleware_CSRF_ValidToken(t *testing.T) {
 	r := setupTestRouter(log)
 
 	jwtToken := generateTestJWT("test-user")
-	csrfToken, _ := util.GenerateCsrfToken(testSecret, "test-user")
+	csrfToken, _ := csrf.GenerateCsrfToken(testSecret, "test-user")
 	req := httptest.NewRequest("POST", "/test", nil)
 	req.AddCookie(&http.Cookie{Name: "token", Value: jwtToken})
 	req.Header.Set("X-XSRF-TOKEN", csrfToken)
@@ -143,4 +143,3 @@ func TestJWTMiddleware_CSRF_GetExempt(t *testing.T) {
 		t.Fatalf("expected 200, got %d", w.Code)
 	}
 }
-
