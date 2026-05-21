@@ -4,6 +4,7 @@ type Config struct {
 	Server struct {
 		Port         int    `mapstructure:"port"`
 		Domain       string `mapstructure:"domain"`
+		RTMPHost     string `mapstructure:"rtmp_host"`
 		HTTPS        bool   `mapstructure:"https" default:"false"`
 		EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
 		LogLevel     string `mapstructure:"log_level" default:"INFO"`

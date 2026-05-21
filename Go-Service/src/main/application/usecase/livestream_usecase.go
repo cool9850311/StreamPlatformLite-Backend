@@ -131,7 +131,7 @@ func (u *LivestreamUsecase) GetLivestreamByID(ctx context.Context, id string, us
 		Visibility:    livestream.Visibility,
 		Title:         livestream.Title,
 		Information:   livestream.Information,
-		StreamPushURL: "rtmp://" + u.config.Server.Domain + ":1935/" + livestream.APIKey,
+		StreamPushURL: "rtmp://" + u.config.Server.RTMPHost + ":1935/" + livestream.APIKey,
 		BanList:       livestream.BanList,
 		MuteList:      livestream.MuteList,
 		IsRecord:      livestream.IsRecord,
@@ -155,7 +155,7 @@ func (u *LivestreamUsecase) GetLivestreamByOwnerID(ctx context.Context, ownerID 
 		Visibility:    livestream.Visibility,
 		Title:         livestream.Title,
 		Information:   livestream.Information,
-		StreamPushURL: "rtmp://" + u.config.Server.Domain + ":1935/" + livestream.APIKey,
+		StreamPushURL: "rtmp://" + u.config.Server.RTMPHost + ":1935/" + livestream.APIKey,
 		BanList:       livestream.BanList,
 		MuteList:      livestream.MuteList,
 		IsRecord:      livestream.IsRecord,
@@ -236,7 +236,7 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 		return nil, err
 	}
 	return &livestreamDTO.LivestreamCreateResponseDTO{
-		StreamPushURL: "rtmp://" + u.config.Server.Domain + ":1935/" + apiKey,
+		StreamPushURL: "rtmp://" + u.config.Server.RTMPHost + ":1935/" + apiKey,
 	}, nil
 }
 
