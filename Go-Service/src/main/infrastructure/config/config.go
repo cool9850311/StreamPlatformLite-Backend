@@ -74,6 +74,7 @@ func LoadConfig() {
 	AppConfig.PostgreSQL.AutoMigrateSchema = getEnvAsBool("SCHEMA_AUTO_MIGRATE", true)
 	AppConfig.JWT.SecretKey = os.Getenv("APP_SECRET_KEY")
 	AppConfig.Server.Domain = os.Getenv("DOMAIN")
+	AppConfig.Server.RTMPHost = getEnvOrDefault("RTMP_HOST", AppConfig.Server.Domain)
 	AppConfig.Frontend.Domain = os.Getenv("FRONTEND_DOMAIN")
 	AppConfig.Frontend.Port = int(getEnvAsInt64("FRONTEND_PORT", 3000))
 	AppConfig.Redis.URI = os.Getenv("REDIS_URI")
