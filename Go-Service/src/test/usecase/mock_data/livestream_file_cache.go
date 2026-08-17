@@ -1,6 +1,8 @@
 package mock_data
 
 import (
+	"time"
+
 	"github.com/stretchr/testify/mock"
 )
 
@@ -33,4 +35,14 @@ func (m *MockFileCache) DeleteFile(filePath string) {
 
 func (m *MockFileCache) Range(f func(key, value interface{}) bool) {
 	m.Called(f)
+}
+
+func (m *MockFileCache) Exists(path string) (bool, error) {
+	args := m.Called(path)
+	return args.Bool(0), args.Error(1)
+}
+
+func (m *MockFileCache) Stat(path string) (int64, time.Time, error) {
+	args := m.Called(path)
+	return args.Get(0).(int64), args.Get(1).(time.Time), args.Error(2)
 }

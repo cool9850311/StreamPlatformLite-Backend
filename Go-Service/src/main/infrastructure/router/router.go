@@ -51,7 +51,7 @@ func setupMiddlewares(r *gin.Engine) {
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-XSRF-TOKEN"},
-		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Cache-Control", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Disposition", "Cache-Control", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Accept-Ranges", "Content-Range"},
 		AllowCredentials: true,
 	}))
 
@@ -94,6 +94,7 @@ func setupRoutes(r *gin.Engine, db *gorm.DB, log logger.Logger, liveStreamServic
 		livestream.DELETE("/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.DeleteLivestream)
 		livestream.GET("/owner/:user_id", middleware.JWTAuthMiddleware(log), livestreamController.GetLivestreamByOwnerId)
 		livestream.GET("/record/:uuid", middleware.JWTAuthMiddleware(log), livestreamController.GetRecord)
+		livestream.GET("/record/:uuid/status", middleware.JWTAuthMiddleware(log), livestreamController.GetRecordStatus)
 
 		chat := livestream.Group("/chat")
 		{

@@ -12,7 +12,6 @@ import (
 	"Go-Service/src/main/infrastructure/message"
 	"Go-Service/src/main/infrastructure/util"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -141,6 +140,14 @@ func (c *LivestreamController) CreateLivestream(ctx *gin.Context) {
 			ctx.JSON(http.StatusConflict, gin.H{"message": message.MsgAlreadyExists})
 			return
 		}
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		if err == errors.ErrInvalidInput {
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Invalid input"})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
@@ -164,6 +171,14 @@ func (c *LivestreamController) UpdateLivestream(ctx *gin.Context) {
 	}
 	err = c.livestreamUseCase.UpdateLivestream(ctx, &livestream, claims.Role)
 	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		if err == errors.ErrInvalidInput {
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Invalid input"})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
 	}
@@ -447,7 +462,7 @@ func (c *LivestreamController) GetRecord(ctx *gin.Context) {
 	}
 
 	// Pass rootPath (trusted) and uuid (external input) to usecase
-	fullFilePath, err := c.livestreamUseCase.GetRecord(ctx, rootPath, uuidStr, claims.Role)
+	recordFile, err := c.livestreamUseCase.GetRecord(ctx, rootPath, uuidStr, claims.Role)
 	if err != nil {
 		if err == errors.ErrInvalidInput {
 			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Invalid input"})
@@ -456,7 +471,7 @@ func (c *LivestreamController) GetRecord(ctx *gin.Context) {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
 	}
-	file, err := os.Open(fullFilePath)
+	file, err := os.Open(recordFile.Path)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"message": "File not found"})
 		return
@@ -472,17 +487,73 @@ func (c *LivestreamController) GetRecord(ctx *gin.Context) {
 
 	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	ctx.Header("Content-Type", "video/mp4")
-	ctx.Header("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
-	filename := filepath.Base(file.Name())
-	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", util.EncodeRFC5987(filename)))
+	// The download name comes from the usecase (derived from the livestream
+	// Title), never from the on-disk name, which is now a fixed constant.
+	// EncodeRFC5987 percent-encodes it, so no title byte can break the header.
+	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", util.EncodeRFC5987(recordFile.DisplayName)))
 
-	_, err = io.Copy(ctx.Writer, file)
+	// http.ServeContent handles Range requests (Accept-Ranges/206/Content-Range/416)
+	// and sets Content-Length itself based on the served slice. Its name argument
+	// only drives content-type sniffing, which the explicit header above already
+	// settles, so it keeps using the on-disk basename.
+	http.ServeContent(ctx.Writer, ctx.Request, filepath.Base(file.Name()), fileInfo.ModTime(), file)
+}
+
+func (c *LivestreamController) GetRecordStatus(ctx *gin.Context) {
+	uuidStr := ctx.Param("uuid")
+
+	rootPath, err := util.GetProjectRootPath()
 	if err != nil {
-		// Cannot send JSON response after headers are sent and streaming has started
-		// Just log the error and abort the connection
-		c.Log.Error(ctx, "Error streaming file: "+err.Error())
-		ctx.Abort()
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 		return
+	}
+
+	claims, err := c.getClaims(ctx)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+
+	status, err := c.livestreamUseCase.GetRecordStatus(ctx, rootPath, uuidStr, claims.Role)
+	if err != nil {
+		if err == errors.ErrUnauthorized {
+			ctx.JSON(http.StatusUnauthorized, gin.H{"message": message.MsgUnauthorized})
+			return
+		}
+		if err == errors.ErrInvalidInput {
+			ctx.JSON(http.StatusBadRequest, gin.H{"message": "Invalid input"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
+		return
+	}
+
+	// Never cache the polling responses.
+	switch status.State {
+	case usecase.RecordStateReady:
+		ctx.Header("Cache-Control", "no-store")
+		ctx.JSON(http.StatusOK, gin.H{
+			"state":    usecase.RecordStateReady,
+			"filename": status.Filename,
+			"size":     status.SizeBytes,
+		})
+	case usecase.RecordStateConverting:
+		ctx.Header("Cache-Control", "no-store")
+		ctx.JSON(http.StatusAccepted, gin.H{
+			"state":           usecase.RecordStateConverting,
+			"elapsed_seconds": status.ElapsedSeconds,
+		})
+	case usecase.RecordStateUnavailable:
+		ctx.Header("Cache-Control", "no-store")
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"state": usecase.RecordStateUnavailable,
+		})
+	default:
+		ctx.JSON(http.StatusInternalServerError, gin.H{"message": message.MsgInternalServerError})
 	}
 }
 

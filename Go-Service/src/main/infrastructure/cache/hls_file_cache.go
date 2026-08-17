@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 type FileCache struct {
@@ -56,4 +57,26 @@ func (fc *FileCache) DeleteFile(filePath string) {
 
 func (fc *FileCache) Range(f func(key, value interface{}) bool) {
 	fc.cache.Range(f)
+}
+
+// Exists reports whether the given path exists on the filesystem.
+// A missing path returns (false, nil); any other error is propagated.
+func (fc *FileCache) Exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// Stat returns the size in bytes and the modification time of the given path.
+func (fc *FileCache) Stat(path string) (int64, time.Time, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	return info.Size(), info.ModTime(), nil
 }

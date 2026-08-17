@@ -5,14 +5,17 @@ import (
 	livestreamDto "Go-Service/src/main/application/dto/livestream"
 	"Go-Service/src/main/application/usecase"
 	"Go-Service/src/main/domain/entity/livestream"
-	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"Go-Service/src/test/usecase/mock_data"
 	"context"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
+	"Go-Service/src/main/infrastructure/util"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -45,6 +48,7 @@ func setupLivestream() *LivestreamTestSetup {
 		Server: struct {
 			Port         int    `mapstructure:"port"`
 			Domain       string `mapstructure:"domain"`
+			RTMPHost     string `mapstructure:"rtmp_host"`
 			HTTPS        bool   `mapstructure:"https" default:"false"`
 			EnableGinLog bool   `mapstructure:"enable_gin_log" default:"true"`
 			LogLevel     string `mapstructure:"log_level" default:"INFO"`
@@ -1620,7 +1624,6 @@ func TestGetRecord_User_Unauthorized(t *testing.T) {
 	assert.Empty(t, result)
 }
 
-
 // Not Found Test
 func TestGetFile_NotFound(t *testing.T) {
 	setup := setupLivestream()
@@ -1663,12 +1666,18 @@ func TestGetRecord_Admin_Success(t *testing.T) {
 	rootPath := "/test/root"
 	filePath := "/test/root/hls/" + validUUID + "/*.mp4"
 
+	// The fixed name is probed first; this test covers the legacy glob branch,
+	// so the probe must miss.
+	setup.MockFileCache.On("Exists", recordFixedPath(validUUID)).Return(false, nil)
 	setup.MockFileCache.On("GetSingleFileName", filePath).Return("output.mp4", nil)
+	// The display name is now resolved through the repository; an empty Title
+	// keeps the on-disk basename, which is what this test is about.
+	setup.MockRepo.On("GetByID", validUUID).Return(&livestream.Livestream{UUID: validUUID}, nil)
 
 	result, err := setup.UseCase.GetRecord(ctx, rootPath, validUUID, role.Admin)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "output.mp4", result)
+	assert.Equal(t, "output.mp4", result.Path)
 	setup.MockFileCache.AssertExpectations(t)
 }
 
@@ -1962,7 +1971,10 @@ func TestGetRecord_PathValidation(t *testing.T) {
 
 			if tt.needMock {
 				filePath := filepath.Join(rootPath, "hls", tt.uuid, "*.mp4")
+				// Fixed-name probe misses so the legacy glob is used.
+				setup.MockFileCache.On("Exists", recordFixedPath(tt.uuid)).Return(false, nil)
 				setup.MockFileCache.On("GetSingleFileName", filePath).Return("output.mp4", nil)
+				setup.MockRepo.On("GetByID", tt.uuid).Return(&livestream.Livestream{UUID: tt.uuid}, nil)
 			}
 
 			result, err := setup.UseCase.GetRecord(ctx, rootPath, tt.uuid, role.Admin)
@@ -1973,12 +1985,513 @@ func TestGetRecord_PathValidation(t *testing.T) {
 				assert.Empty(t, result)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, "output.mp4", result)
+				assert.Equal(t, "output.mp4", result.Path)
 			}
 
 			if tt.needMock {
 				setup.MockFileCache.AssertExpectations(t)
 			}
+		})
+	}
+}
+
+// ================================================================================
+// API: GetRecordStatus (12 tests) + GetRecord read-only guard (1 test)
+// Grouped by: State machine -> Task table -> Role/Input validation
+// ================================================================================
+
+const (
+	recordTestRootPath  = "/test/root"
+	recordTestUUID      = "83636040-7f54-49f2-ae40-9a1213614729"
+	recordTestOtherUUID = "9c2f1d3e-4a5b-4c6d-8e7f-0a1b2c3d4e5f"
+)
+
+// recordMp4Glob returns the glob the usecase uses to look for the converted mp4.
+func recordMp4Glob(livestreamUUID string) string {
+	return filepath.Join(recordTestRootPath, "hls", livestreamUUID, "*.mp4")
+}
+
+// recordFixedPath returns the fixed-name recording path the usecase probes first
+// (read precedence step 1: util.RecordingFileName, then the "*.mp4" glob).
+func recordFixedPath(livestreamUUID string) string {
+	return filepath.Join(recordTestRootPath, "hls", livestreamUUID, util.RecordingFileName)
+}
+
+// recordPlaylistPath returns the HLS record playlist path the usecase probes.
+func recordPlaylistPath(livestreamUUID string) string {
+	return filepath.Join(recordTestRootPath, "hls", livestreamUUID, "record.m3u8")
+}
+
+// waitForFfmpegCalls polls the ffmpeg mock call counter until it reaches want,
+// so that conversions started in a background goroutine can be observed without
+// relying on a bare sleep. It fails the test when the bound is exceeded.
+func waitForFfmpegCalls(t *testing.T, setup *LivestreamTestSetup, want int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		if got := setup.MockFfmpegLibrary.CallCount(); got >= want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out after %s waiting for ffmpeg call count to reach %d, got %d",
+				timeout, want, setup.MockFfmpegLibrary.CallCount())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// waitForConvertTaskRelease waits until the conversion task registered for
+// livestreamUUID has been removed from the task table. Release is not directly
+// observable from outside the usecase, so it is detected by the only externally
+// visible consequence: a further GetRecordStatus call is able to start a brand
+// new conversion, pushing the ffmpeg call counter past baseline.
+//
+// The caller is expected to have made the retry conversion blocking (SetDelay)
+// so that at most one extra conversion can be started while polling.
+func waitForConvertTaskRelease(t *testing.T, setup *LivestreamTestSetup, livestreamUUID string, baseline int, timeout time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	deadline := time.Now().Add(timeout)
+	for {
+		if setup.MockFfmpegLibrary.CallCount() > baseline {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("timed out after %s waiting for the convert task of %s to be released (ffmpeg calls stuck at %d)",
+				timeout, livestreamUUID, setup.MockFfmpegLibrary.CallCount())
+		}
+		status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, livestreamUUID, role.Admin)
+		if err != nil {
+			t.Fatalf("unexpected error while polling GetRecordStatus: %v", err)
+		}
+		if status.State != usecase.RecordStateConverting {
+			t.Fatalf("expected state %q while polling, got %q", usecase.RecordStateConverting, status.State)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// State: ready
+func TestGetRecordStatus_Admin_Ready(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	mp4Path := filepath.Join(recordTestRootPath, "hls", recordTestUUID, "output.mp4")
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return(mp4Path, nil)
+	setup.MockFileCache.On("Stat", mp4Path).Return(int64(4096), time.Time{}, nil)
+	// Empty Title -> the reported filename is the on-disk basename, as before.
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{UUID: recordTestUUID}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateReady, status.State)
+	assert.Equal(t, "output.mp4", status.Filename)
+	assert.Equal(t, int64(4096), status.SizeBytes)
+	assert.Equal(t, 0, setup.MockFfmpegLibrary.CallCount(), "ffmpeg must not be called when the mp4 already exists")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// State: unavailable -> converting
+func TestGetRecordStatus_Admin_TriggersConvert_WhenM3u8Exists(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return("", errors.ErrNotFound)
+	setup.MockFileCache.On("Exists", recordPlaylistPath(recordTestUUID)).Return(true, nil)
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{
+		UUID:  recordTestUUID,
+		Title: "Test Record",
+	}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateConverting, status.State)
+	assert.Equal(t, int64(0), status.ElapsedSeconds)
+
+	waitForFfmpegCalls(t, setup, 1, 3*time.Second)
+	assert.Equal(t, 1, setup.MockFfmpegLibrary.CallCount())
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// State: unavailable
+func TestGetRecordStatus_Admin_Unavailable_NoM3u8(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return("", errors.ErrNotFound)
+	setup.MockFileCache.On("Exists", recordPlaylistPath(recordTestUUID)).Return(false, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateUnavailable, status.State)
+	assert.Equal(t, 0, setup.MockFfmpegLibrary.CallCount(), "ffmpeg must not be called without a record playlist")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// Task table: same uuid is converted only once
+func TestGetRecordStatus_SameUUID_OnlyOneConvertTask(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	setup.MockFfmpegLibrary.SetDelay(500 * time.Millisecond)
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return("", errors.ErrNotFound)
+	setup.MockFileCache.On("Exists", recordPlaylistPath(recordTestUUID)).Return(true, nil)
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{
+		UUID:  recordTestUUID,
+		Title: "Test Record",
+	}, nil)
+
+	for i := 0; i < 5; i++ {
+		status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+		assert.NoError(t, err)
+		assert.Equal(t, usecase.RecordStateConverting, status.State, "call %d should report converting", i+1)
+	}
+
+	waitForFfmpegCalls(t, setup, 1, 3*time.Second)
+	assert.Equal(t, 1, setup.MockFfmpegLibrary.CallCount(), "the same uuid must only start one conversion")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// Task table: different uuids convert in parallel (regression test for the old global mutex)
+func TestGetRecordStatus_DifferentUUIDs_BothConvert(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	setup.MockFfmpegLibrary.SetDelay(500 * time.Millisecond)
+	for _, uuid := range []string{recordTestUUID, recordTestOtherUUID} {
+		setup.MockFileCache.On("Exists", recordFixedPath(uuid)).Return(false, nil)
+		setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(uuid)).Return("", errors.ErrNotFound)
+		setup.MockFileCache.On("Exists", recordPlaylistPath(uuid)).Return(true, nil)
+		setup.MockRepo.On("GetByID", uuid).Return(&livestream.Livestream{
+			UUID:  uuid,
+			Title: "Test Record " + uuid,
+		}, nil)
+	}
+
+	firstStatus, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateConverting, firstStatus.State)
+
+	secondStatus, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestOtherUUID, role.Admin)
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateConverting, secondStatus.State, "a second uuid must not be blocked by the first conversion")
+
+	waitForFfmpegCalls(t, setup, 2, 3*time.Second)
+	assert.Equal(t, 2, setup.MockFfmpegLibrary.CallCount(), "each uuid must get its own conversion")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// State: converting -> ready
+func TestGetRecordStatus_ConvertFinished_ThenReady(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	glob := recordMp4Glob(recordTestUUID)
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	missCall := setup.MockFileCache.On("GetSingleFileName", glob).Return("", errors.ErrNotFound)
+	setup.MockFileCache.On("Exists", recordPlaylistPath(recordTestUUID)).Return(true, nil)
+	// The convert path no longer reads the livestream; this stub now only feeds
+	// the display name of the "ready" phase below, where an empty Title keeps
+	// the on-disk basename this test asserts on.
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{
+		UUID: recordTestUUID,
+	}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateConverting, status.State)
+
+	// The first conversion runs to completion, then its task entry is released.
+	waitForFfmpegCalls(t, setup, 1, 3*time.Second)
+	setup.MockFfmpegLibrary.SetDelay(500 * time.Millisecond)
+	waitForConvertTaskRelease(t, setup, recordTestUUID, 1, 3*time.Second)
+
+	// Re-point the file cache so the mp4 glob now hits.
+	mp4Path := filepath.Join(recordTestRootPath, "hls", recordTestUUID, "output.mp4")
+	missCall.Unset()
+	setup.MockFileCache.On("GetSingleFileName", glob).Return(mp4Path, nil)
+	setup.MockFileCache.On("Stat", mp4Path).Return(int64(2048), time.Time{}, nil)
+
+	status, err = setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateReady, status.State)
+	assert.Equal(t, "output.mp4", status.Filename)
+	assert.Equal(t, int64(2048), status.SizeBytes)
+}
+
+// Role: Editor (Unauthorized)
+func TestGetRecordStatus_Editor_Unauthorized(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Editor)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+	assert.Equal(t, usecase.RecordStatus{}, status)
+}
+
+// Role: User (Unauthorized)
+func TestGetRecordStatus_User_Unauthorized(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.User)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+	assert.Equal(t, usecase.RecordStatus{}, status)
+}
+
+// Role: Guest (Unauthorized)
+func TestGetRecordStatus_Guest_Unauthorized(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Guest)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+	assert.Equal(t, usecase.RecordStatus{}, status)
+}
+
+// Role: Anonymous (Unauthorized)
+func TestGetRecordStatus_Anonymous_Unauthorized(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Anonymous)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrUnauthorized, err)
+	assert.Equal(t, usecase.RecordStatus{}, status)
+}
+
+// Input validation: invalid uuid
+func TestGetRecordStatus_InvalidUUID(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, "not-a-uuid", role.Admin)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrInvalidInput, err)
+	assert.Equal(t, usecase.RecordStatus{}, status)
+	assert.Equal(t, 0, setup.MockFfmpegLibrary.CallCount())
+}
+
+// Task table: a failed conversion releases its task entry
+func TestGetRecordStatus_ConvertFails_TaskReleased(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	setup.MockFfmpegLibrary.SetError(errors.ErrInternal)
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return("", errors.ErrNotFound)
+	setup.MockFileCache.On("Exists", recordPlaylistPath(recordTestUUID)).Return(true, nil)
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{
+		UUID:  recordTestUUID,
+		Title: "Test Record",
+	}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateConverting, status.State)
+
+	waitForFfmpegCalls(t, setup, 1, 3*time.Second)
+
+	// Make the retry conversion blocking so exactly one new task can be started.
+	setup.MockFfmpegLibrary.SetDelay(500 * time.Millisecond)
+	waitForConvertTaskRelease(t, setup, recordTestUUID, 1, 3*time.Second)
+
+	assert.Equal(t, 2, setup.MockFfmpegLibrary.CallCount(), "a failed conversion must release its task so a retry can start")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// A4 guard: GetRecord is read-only
+func TestGetRecord_NoLongerTriggersConvert(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return("", errors.ErrNotFound)
+
+	result, err := setup.UseCase.GetRecord(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.Error(t, err)
+	assert.Equal(t, errors.ErrNotFound, err)
+	assert.Empty(t, result)
+	assert.Equal(t, 0, setup.MockFfmpegLibrary.CallCount(), "GetRecord must never trigger a conversion")
+	setup.MockFileCache.AssertExpectations(t)
+	setup.MockRepo.AssertNotCalled(t, "GetByID")
+}
+
+// ================================================================================
+// Read precedence and display name (plan tasks C-1 .. C-4)
+// ================================================================================
+
+// C-1: the fixed name wins over a legacy "*.mp4" file.
+func TestGetRecordStatus_PrefersFixedName(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	fixedPath := recordFixedPath(recordTestUUID)
+	setup.MockFileCache.On("Exists", fixedPath).Return(true, nil)
+	setup.MockFileCache.On("Stat", fixedPath).Return(int64(1024), time.Time{}, nil)
+	// Empty Title, so the reported filename is the basename of whichever file was
+	// resolved - that is what makes the assertion below able to tell the two
+	// candidates apart.
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{UUID: recordTestUUID}, nil)
+
+	// Deliberately NO expectation for GetSingleFileName: a legacy file would be
+	// resolvable on disk, so if the usecase consulted the glob at all the mock
+	// would fail the test with an unexpected call.
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateReady, status.State)
+	assert.Equal(t, util.RecordingFileName, status.Filename, "the fixed name must win over any legacy *.mp4")
+	assert.Equal(t, int64(1024), status.SizeBytes, "the size must come from the fixed-name file")
+	setup.MockFileCache.AssertNotCalled(t, "GetSingleFileName", mock.Anything)
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// C-2: with no fixed-name file, a legacy "*.mp4" is still reported as ready.
+func TestGetRecordStatus_LegacyFileFallback(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	legacyPath := filepath.Join(recordTestRootPath, "hls", recordTestUUID, "legacy record.mp4")
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return(legacyPath, nil)
+	setup.MockFileCache.On("Stat", legacyPath).Return(int64(7777), time.Time{}, nil)
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{UUID: recordTestUUID}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateReady, status.State, "a legacy recording must stay downloadable")
+	assert.Equal(t, int64(7777), status.SizeBytes, "the size must be stat'ed on the legacy file")
+	assert.Equal(t, filepath.Base(legacyPath), status.Filename)
+	assert.Equal(t, 0, setup.MockFfmpegLibrary.CallCount(), "a legacy recording must not trigger a conversion")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// C-3: the reported filename comes from the Title, not from the on-disk name.
+func TestGetRecordStatus_FilenameFromTitle(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	// A title the sanitiser has to change: the path separator is dropped.
+	const title = "Live/Show 2026"
+
+	mp4Path := filepath.Join(recordTestRootPath, "hls", recordTestUUID, "output.mp4")
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return(mp4Path, nil)
+	setup.MockFileCache.On("Stat", mp4Path).Return(int64(512), time.Time{}, nil)
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{
+		UUID:  recordTestUUID,
+		Title: title,
+	}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateReady, status.State)
+	assert.Equal(t, util.SanitizeDownloadFilename(title), status.Filename)
+	// Pinned literal: this is the one case that documents the contract, so a
+	// silent change in how separators are handled has to break the test.
+	assert.Equal(t, "LiveShow 2026.mp4", status.Filename)
+	assert.NotEqual(t, filepath.Base(mp4Path), status.Filename, "the on-disk name must stay invisible to the client")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// C-4: a blank Title degrades to the on-disk basename.
+func TestGetRecordStatus_FilenameFallsBackToDiskName_WhenTitleEmpty(t *testing.T) {
+	setup := setupLivestream()
+	ctx := context.Background()
+
+	mp4Path := filepath.Join(recordTestRootPath, "hls", recordTestUUID, "legacy-2026.mp4")
+	setup.MockFileCache.On("Exists", recordFixedPath(recordTestUUID)).Return(false, nil)
+	setup.MockFileCache.On("GetSingleFileName", recordMp4Glob(recordTestUUID)).Return(mp4Path, nil)
+	setup.MockFileCache.On("Stat", mp4Path).Return(int64(64), time.Time{}, nil)
+	setup.MockRepo.On("GetByID", recordTestUUID).Return(&livestream.Livestream{
+		UUID:  recordTestUUID,
+		Title: "   \t  ",
+	}, nil)
+
+	status, err := setup.UseCase.GetRecordStatus(ctx, recordTestRootPath, recordTestUUID, role.Admin)
+
+	assert.NoError(t, err)
+	assert.Equal(t, usecase.RecordStateReady, status.State)
+	assert.Equal(t, filepath.Base(mp4Path), status.Filename, "a blank title must fall back to the on-disk basename")
+	setup.MockFileCache.AssertExpectations(t)
+}
+
+// ================================================================================
+// Title validation at the write entrypoints (plan tasks C-5, C-6)
+// ================================================================================
+
+// invalidTitleCases are the inputs util.ValidateLivestreamTitle must reject.
+func invalidTitleCases() []struct {
+	name  string
+	title string
+} {
+	return []struct {
+		name  string
+		title string
+	}{
+		{name: "Control Character", title: "evil\r\ntitle"},
+		{name: "Too Long", title: strings.Repeat("a", util.MaxTitleRunes+1)},
+	}
+}
+
+// C-5
+func TestCreateLivestream_RejectsInvalidTitle(t *testing.T) {
+	for _, tt := range invalidTitleCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			setup := setupLivestream()
+			ctx := context.Background()
+
+			result, err := setup.UseCase.CreateLivestream(ctx, &livestreamDto.LivestreamCreateDTO{
+				Name:        "Test Stream",
+				Visibility:  livestream.Public,
+				Title:       tt.title,
+				Information: "Test Info",
+			}, "user123", role.Admin)
+
+			assert.Error(t, err)
+			assert.Equal(t, errors.ErrInvalidInput, err)
+			assert.Nil(t, result)
+			setup.MockRepo.AssertNotCalled(t, "Create", mock.Anything)
+			setup.MockRepo.AssertNotCalled(t, "GetOne")
+		})
+	}
+}
+
+// C-6
+func TestUpdateLivestream_RejectsInvalidTitle(t *testing.T) {
+	for _, tt := range invalidTitleCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			setup := setupLivestream()
+			ctx := context.Background()
+
+			err := setup.UseCase.UpdateLivestream(ctx, &livestream.Livestream{
+				UUID:  recordTestUUID,
+				Title: tt.title,
+			}, role.Admin)
+
+			assert.Error(t, err)
+			assert.Equal(t, errors.ErrInvalidInput, err)
+			setup.MockRepo.AssertNotCalled(t, "Update", mock.Anything)
 		})
 	}
 }

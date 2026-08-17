@@ -9,13 +9,13 @@ import (
 	"Go-Service/src/main/domain/entity/chat"
 	"Go-Service/src/main/domain/entity/errors"
 	"Go-Service/src/main/domain/entity/livestream"
-	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"Go-Service/src/main/domain/interface/file_cache"
 	"Go-Service/src/main/domain/interface/libarary/ffmpeg"
 	"Go-Service/src/main/domain/interface/logger"
 	"Go-Service/src/main/infrastructure/util"
 	"context"
 	goErrors "errors"
+	"github.com/cool9850311/StreamPlatformLite-Core/pkg/role"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -36,7 +36,79 @@ type LivestreamUsecase struct {
 	fileCache        file_cache.IFileCache
 	ffmpegLibrary    ffmpeg.FfmpegLibrary
 	m3u8Lock         sync.Mutex
-	convertTaskLock  sync.Mutex
+	// convertTasks tracks in-flight mp4 conversion tasks keyed by livestream uuid.
+	// The value is the task start time as unix seconds (int64).
+	// NOTE: sync.Map must not be copied; LivestreamUsecase is always used via pointer receiver.
+	convertTasks sync.Map
+}
+
+// Record status states returned by GetRecordStatus.
+const (
+	RecordStateReady       = "ready"
+	RecordStateConverting  = "converting"
+	RecordStateUnavailable = "unavailable"
+)
+
+// RecordStatus describes the availability of a livestream mp4 recording.
+type RecordStatus struct {
+	State          string
+	Filename       string
+	SizeBytes      int64
+	ElapsedSeconds int64
+}
+
+// RecordFile is the result of resolving a livestream recording for download.
+//
+// Path and DisplayName are deliberately decoupled: Path is the on-disk location
+// (a compile-time constant name, never influenced by user input) while
+// DisplayName is derived from the user-supplied livestream Title and is only
+// ever used in the Content-Disposition header. See plan section 5.1.
+type RecordFile struct {
+	// Path is the absolute on-disk path of the recording to serve.
+	Path string
+	// DisplayName is the sanitised filename shown to the downloading client.
+	DisplayName string
+}
+
+// detachContext returns a background context that carries over only the trace id, so
+// work outliving the request keeps correlated logs without holding on to a pooled
+// *gin.Context (see gin's Context.Copy doc: a context handed to a goroutine must not
+// be the live request context).
+func detachContext(ctx context.Context) context.Context {
+	if traceID, ok := ctx.Value("trace_id").(string); ok {
+		return context.WithValue(context.Background(), "trace_id", traceID)
+	}
+	return context.Background()
+}
+
+// tryStartConvert registers a conversion task for the given uuid.
+// It returns true only when this call created the entry.
+func (u *LivestreamUsecase) tryStartConvert(uuid string) bool {
+	_, loaded := u.convertTasks.LoadOrStore(uuid, time.Now().Unix())
+	return !loaded
+}
+
+// finishConvert removes the conversion task for the given uuid.
+func (u *LivestreamUsecase) finishConvert(uuid string) {
+	u.convertTasks.Delete(uuid)
+}
+
+// convertElapsedSeconds returns the elapsed seconds since the conversion task for
+// the given uuid started, and whether such a task exists.
+func (u *LivestreamUsecase) convertElapsedSeconds(uuid string) (int64, bool) {
+	value, ok := u.convertTasks.Load(uuid)
+	if !ok {
+		return 0, false
+	}
+	startedAt, ok := value.(int64)
+	if !ok {
+		return 0, false
+	}
+	elapsed := time.Now().Unix() - startedAt
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	return elapsed, true
 }
 
 func NewLivestreamUsecase(livestreamRepo repository.LivestreamRepository, log logger.Logger, config config.Config, streamService stream.ILivestreamService, viewerCountCache cache.ViewerCount, chatCache cache.Chat, fileCache file_cache.IFileCache, ffmpegLibrary ffmpeg.FfmpegLibrary) *LivestreamUsecase {
@@ -198,6 +270,12 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 		u.Log.Error(ctx, "Unauthorized access to CreateLivestream")
 		return nil, err
 	}
+	// Hygiene layer only (plan section 5.4, layer 3): the title never reaches the
+	// filesystem, so this rejects nonsense early rather than being a defence.
+	if err := util.ValidateLivestreamTitle(livestreamData.Title); err != nil {
+		u.Log.Warn(ctx, "Invalid title in CreateLivestream")
+		return nil, err
+	}
 	existing, err := u.LivestreamRepo.GetOne()
 	if err != nil && !goErrors.Is(err, errors.ErrNotFound) {
 		u.Log.Error(ctx, "Error checking existing livestream: "+err.Error())
@@ -243,6 +321,12 @@ func (u *LivestreamUsecase) CreateLivestream(ctx context.Context, livestreamData
 func (u *LivestreamUsecase) UpdateLivestream(ctx context.Context, livestream *livestream.Livestream, userRole role.Role) error {
 	if err := u.checkAdminRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to UpdateLivestream")
+		return err
+	}
+	// Hygiene layer only (plan section 5.4, layer 3): the title never reaches the
+	// filesystem, so this rejects nonsense early rather than being a defence.
+	if err := util.ValidateLivestreamTitle(livestream.Title); err != nil {
+		u.Log.Warn(ctx, "Invalid title in UpdateLivestream")
 		return err
 	}
 	err := u.LivestreamRepo.Update(livestream)
@@ -544,50 +628,170 @@ func (u *LivestreamUsecase) GetFile(ctx context.Context, rootPath, uuidStr, file
 
 	return fileData, nil
 }
-func (u *LivestreamUsecase) GetRecord(ctx context.Context, rootPath, livestreamUUID string, userRole role.Role) (string, error) {
+
+// findRecordFile resolves the on-disk recording of a livestream, applying the
+// read precedence of plan section 5.3. It is the SINGLE source of truth shared
+// by GetRecord and GetRecordStatus so the download endpoint and the status
+// endpoint can never disagree about which file (if any) is the recording:
+//
+//  1. the fixed name util.RecordingFileName, written by every conversion since
+//     the storage/display name decoupling;
+//  2. otherwise a "*.mp4" glob hit, which is a legacy recording named after the
+//     livestream Title before that change (kept downloadable, never migrated);
+//  3. otherwise errors.ErrNotFound.
+//
+// rootPath is trusted and livestreamUUID must already have been validated by
+// the caller, so the joined path needs no further boundary check.
+func (u *LivestreamUsecase) findRecordFile(ctx context.Context, rootPath, livestreamUUID string) (string, error) {
+	recordDir := filepath.Join(rootPath, "hls", livestreamUUID)
+
+	fixedPath := filepath.Join(recordDir, util.RecordingFileName)
+	exists, err := u.fileCache.Exists(fixedPath)
+	if err != nil {
+		// Not fatal: fall through to the legacy glob rather than hiding a
+		// recording that is actually there.
+		u.Log.Error(ctx, "Error checking recording file: "+err.Error())
+	} else if exists {
+		return fixedPath, nil
+	}
+
+	legacyPath, err := u.fileCache.GetSingleFileName(filepath.Join(recordDir, "*.mp4"))
+	if err != nil {
+		return "", errors.ErrNotFound
+	}
+	return legacyPath, nil
+}
+
+// recordDisplayName produces the filename shown to the client for a recording.
+//
+// It is always derived from the livestream Title (sanitised), never from the
+// on-disk name, so the fixed storage name stays invisible to users. Fallbacks,
+// in order: sanitised Title -> on-disk basename -> util.DefaultRecordingFilename.
+//
+// A repository failure is logged and degraded to the basename fallback: a
+// transient database hiccup must never turn a working download into an error.
+func (u *LivestreamUsecase) recordDisplayName(ctx context.Context, livestreamUUID, recordPath string) string {
+	livestreamEntity, err := u.LivestreamRepo.GetByID(livestreamUUID)
+	if err != nil {
+		u.Log.Error(ctx, "Error getting livestream for record display name: "+err.Error())
+	} else if livestreamEntity != nil && strings.TrimSpace(livestreamEntity.Title) != "" {
+		return util.SanitizeDownloadFilename(livestreamEntity.Title)
+	}
+
+	if recordPath != "" {
+		if base := filepath.Base(recordPath); base != "" && base != "." && base != string(filepath.Separator) {
+			return base
+		}
+	}
+
+	return util.DefaultRecordingFilename
+}
+
+func (u *LivestreamUsecase) GetRecord(ctx context.Context, rootPath, livestreamUUID string, userRole role.Role) (RecordFile, error) {
 	// 1. Check admin role
 	if err := u.checkAdminRole(userRole); err != nil {
 		u.Log.Error(ctx, "Unauthorized access to GetRecord")
-		return "", err
+		return RecordFile{}, err
 	}
 
 	// 2. Strictly validate UUID (external input)
 	if err := util.ValidateUUID(livestreamUUID); err != nil {
 		u.Log.Warn(ctx, "Invalid UUID in GetRecord: "+livestreamUUID)
-		return "", errors.ErrInvalidInput
+		return RecordFile{}, errors.ErrInvalidInput
 	}
 
 	// 3. After validation, combine trusted rootPath with validated UUID
 	// No need to validate the combined path - it's guaranteed to be safe
-	filePath := filepath.Join(rootPath, "hls", livestreamUUID, "*.mp4")
-
-	fullFilePath, err := u.fileCache.GetSingleFileName(filePath)
+	//
+	// GetRecord is read-only: it never triggers a conversion.
+	// Triggering conversion is the responsibility of GetRecordStatus.
+	fullFilePath, err := u.findRecordFile(ctx, rootPath, livestreamUUID)
 	if err != nil {
-		u.Log.Error(ctx, "Error getting single file name: "+err.Error())
-
-		// Try to acquire the lock for conversion.
-		if !u.convertTaskLock.TryLock() {
-			return "", errors.ErrNotFound
-		}
-
-		// Construct the source file as "record.m3u8" in the same directory
-		recordPath := filepath.Join(rootPath, "hls", livestreamUUID, "record.m3u8")
-		go func() {
-			defer u.convertTaskLock.Unlock()
-			u.Log.Info(ctx, "Converting stream to mp4: from "+recordPath+" to "+filePath)
-			livestream, err := u.LivestreamRepo.GetByID(livestreamUUID)
-			if err != nil {
-				u.Log.Error(ctx, "Error getting livestream by ID: "+err.Error())
-				return
-			}
-			err = u.ffmpegLibrary.ConvertStreamToMp4(recordPath, livestream.Title)
-			if err != nil {
-				u.Log.Error(ctx, "Error converting stream to mp4: "+err.Error())
-			}
-		}()
-		return "", errors.ErrNotFound
+		u.Log.Error(ctx, "Error getting record file: "+err.Error())
+		return RecordFile{}, errors.ErrNotFound
 	}
-	return fullFilePath, nil
+
+	return RecordFile{
+		Path:        fullFilePath,
+		DisplayName: u.recordDisplayName(ctx, livestreamUUID, fullFilePath),
+	}, nil
+}
+
+// GetRecordStatus reports the availability of the mp4 recording for a livestream,
+// starting a background conversion when the HLS record playlist exists but the mp4 does not.
+func (u *LivestreamUsecase) GetRecordStatus(ctx context.Context, rootPath, livestreamUUID string, userRole role.Role) (RecordStatus, error) {
+	// 1. Check admin role
+	if err := u.checkAdminRole(userRole); err != nil {
+		u.Log.Error(ctx, "Unauthorized access to GetRecordStatus")
+		return RecordStatus{}, errors.ErrUnauthorized
+	}
+
+	// 2. Strictly validate UUID (external input)
+	if err := util.ValidateUUID(livestreamUUID); err != nil {
+		u.Log.Warn(ctx, "Invalid UUID in GetRecordStatus: "+livestreamUUID)
+		return RecordStatus{}, errors.ErrInvalidInput
+	}
+
+	// 3. The mp4 already exists -> ready
+	// Resolution goes through the same helper the download endpoint uses, so a
+	// file reported as ready here is exactly the file GetRecord will serve.
+	if fullFilePath, err := u.findRecordFile(ctx, rootPath, livestreamUUID); err == nil {
+		status := RecordStatus{
+			State:    RecordStateReady,
+			Filename: u.recordDisplayName(ctx, livestreamUUID, fullFilePath),
+		}
+		size, _, statErr := u.fileCache.Stat(fullFilePath)
+		if statErr != nil {
+			u.Log.Error(ctx, "Error stating record file: "+statErr.Error())
+		} else {
+			status.SizeBytes = size
+		}
+		return status, nil
+	}
+
+	// 4. No source playlist -> unavailable
+	recordPath := filepath.Join(rootPath, "hls", livestreamUUID, "record.m3u8")
+	exists, err := u.fileCache.Exists(recordPath)
+	if err != nil {
+		u.Log.Error(ctx, "Error checking record playlist: "+err.Error())
+		return RecordStatus{State: RecordStateUnavailable}, nil
+	}
+	if !exists {
+		return RecordStatus{State: RecordStateUnavailable}, nil
+	}
+
+	// 5. A conversion task for this uuid is already running
+	if elapsed, ok := u.convertElapsedSeconds(livestreamUUID); ok {
+		return RecordStatus{State: RecordStateConverting, ElapsedSeconds: elapsed}, nil
+	}
+
+	// 6. Start a new conversion task for this uuid
+	if !u.tryStartConvert(livestreamUUID) {
+		elapsed, _ := u.convertElapsedSeconds(livestreamUUID)
+		return RecordStatus{State: RecordStateConverting, ElapsedSeconds: elapsed}, nil
+	}
+
+	// The conversion outlives this request, so it must NOT capture the request-scoped
+	// context: when the caller is a *gin.Context it is pooled and reset() nils out
+	// c.Keys without holding the mutex that c.Get() reads under, which races with any
+	// later logger call. Detach now, while the request is still alive, keeping only the
+	// trace id so the background logs stay correlated.
+	convertCtx := detachContext(ctx)
+
+	// The output name is a constant owned by the ffmpeg library, so the
+	// conversion no longer needs the livestream Title and the repository lookup
+	// that used to fetch it is gone from this path entirely.
+	outputPath := filepath.Join(rootPath, "hls", livestreamUUID, util.RecordingFileName)
+
+	go func() {
+		defer u.finishConvert(livestreamUUID)
+		u.Log.Info(convertCtx, "Converting stream to mp4: from "+recordPath+" to "+outputPath)
+		if err := u.ffmpegLibrary.ConvertStreamToMp4(recordPath); err != nil {
+			u.Log.Error(convertCtx, "Error converting stream to mp4: "+err.Error())
+		}
+	}()
+
+	return RecordStatus{State: RecordStateConverting, ElapsedSeconds: 0}, nil
 }
 func (u *LivestreamUsecase) updateCachePeriodically(filePath string) {
 	for {
